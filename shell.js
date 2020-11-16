@@ -197,9 +197,11 @@
       this.sigIntReceived = false
       this.environment = new Environment(env, this)
       this.fileSystem = new FileSystem(files, this.environment, this)
+      this.console = console
       this.rl = {
         close: () => {}
       }
+      this.focus = () => {}
     }
 
     getPrompt() {
@@ -243,6 +245,98 @@
       return this.environment.get(key)
     }
 
+    browser(window) {
+
+      let ctrlDown = false
+
+      const history = [
+
+      ]
+
+      let historyPointer = 0
+
+      const document = window.document
+
+      const [promptContainer, promptInput, promptStatement, output] = ['prompt-container','prompt-input','prompt-statement','output'].map(e => document.getElementById(e));
+
+      /* Optimize input for mobile */
+      promptInput.setAttribute('autocomplete', 'off')
+      promptInput.setAttribute('role', 'presentation')
+      promptInput.focus()
+
+      /* Do not submit form on enter */
+      promptContainer.addEventListener('submit', event => {
+        event.preventDefault()
+      })
+
+      promptStatement.innerHTML = this.getPrompt() + ''
+
+      this.focus = () => {
+        promptInput.focus()
+        window.scrollTo(0,window.document.body.scrollHeight);
+      }
+
+      this.console = {
+        log: function() {
+          output.innerHTML+=`<div>${Array.from(arguments).join(' ')}</div>`
+          console.log.apply(console, arguments);
+        },
+        error: function() {
+          console.error.apply(console, arguments);
+        },
+        clear: function() {
+          output.innerHTML=''
+        }
+      }
+      this.execute('cat /etc/motd').then(r => {
+        document.addEventListener('keydown', event => {
+          console.log('DOWN', event.keyCode);
+          if(event.keyCode === 17) {
+            ctrlDown = true
+          }
+        })
+        document.addEventListener('keyup', event => {
+          console.log('UP', event.keyCode);
+          if(event.keyCode === 27 || (event.keyCode === 67 && ctrlDown)) {
+            console.log("SIGINT")
+            if(this.inProcess) {
+              this.sigIntReceived = true
+            }
+          }
+          // Introduce some extra checks that the cursor is at the end of the input
+          if(event.keyCode === 38 || event.keyCode === 40) {
+            if(event.keyCode === 38) {
+              // UP
+              historyPointer = historyPointer > 0 ? historyPointer-1 : 0
+            } else if(event.keyCode === 40) {
+              // DOWN
+              historyPointer = historyPointer < history.length-1 ? historyPointer+1 : history.length-1
+            }
+            promptInput.value = history[historyPointer]
+          }
+          if(event.keyCode === 13) {
+            const line = promptInput.value
+            event.preventDefault()
+            if(this.inProcess) {
+              return
+            }
+            console.log(line)
+            output.innerHTML+=`<div class="old-prompt"><span class="old-prompt-statement">${this.getPrompt()}</span><span class="old-prompt-input">${line}</span></div>`
+            promptStatement.style.display = 'none';
+            this.execute(line).then(result => {
+              this.setenv('?', result)
+              history.push(line)
+              historyPointer = history.length
+              promptStatement.innerHTML = this.getPrompt()
+              promptInput.value = ''
+              promptStatement.style.display = 'block';
+              promptInput.focus()
+            })
+          }
+        })
+      })
+    }
+
     readLine(process, readline) {
       this.rl = readline.createInterface({
         input: process.stdin,
@@ -254,12 +348,7 @@
         }
       })
 
-      this.execute('X=13    Y="Mein \\" < \\"  anderer > TEST" Z="${X} und  ich" cat /etc/motd "das \\" ist ein test ${USER}" \'auch hier ${USER} ein test\'  das"ist noch ein"test ${VAR} > /tmp/motd >>/tmp/motdb asdf').then(r => {
-       if(r.stdout) {
-         console.log(this.environment.applyOnString(r.stdout))
-       }
-
-
+       this.execute('cat /etc/motd').then(r => {
         this.rl.prompt()
         this.rl.on('line', (line) => {
           if(this.inProcess) {
@@ -303,7 +392,7 @@
 
       executables.clear = {
         executable: true,
-        content: () => console.clear()
+        content: () => this.console.clear()
       }
 
       return executables
@@ -432,11 +521,11 @@
     }
 
     out(str) {
-      console.log(str)
+      this.console.log(str)
     }
 
     err(str) {
-      console.error(str)
+      this.console.error(str)
     }
 
     interruptible(fnc) {
@@ -444,6 +533,7 @@
         this.inProcess = true
         const generator = fnc()
         const f = () => {
+          this.focus()
           if(this.sigIntReceived) {
             this.inProcess = false
             this.sigIntReceived = false
@@ -652,101 +742,11 @@
     }
   }
 
+  const shell = new Shell(env, fs)
+
   if(win === false) {
-    const shell = new Shell(env, fs)
-
     shell.readLine(process, require('readline'))
-
   } else {
-    const document = win.document;
-    if(win.clientIp) {
-      /* set clientIP as env variable */
-    }
-    const [p, i, x, o] = ['p','i','x','o'].map(e => document.getElementById(e));
-    let intervalId = -1;
-    i.setAttribute('autocomplete', 'off')
-    i.setAttribute('role', 'presentation')
-    p.addEventListener('submit', event => {
-      event.preventDefault()
-    })
-    function resetInput() {
-      if(intervalId > -1) {
-        p.style.display = 'block'
-        clearInterval(intervalId)
-      }
-      x.innerHTML = environment.PS1 ? environment.PS1.value.replace('\\u', environment.USER.value).replace('\\h', environment.HOSTNAME.value).replace('\\w', environment.PWD.value) : '$'
-      i.value = ''
-      i.focus()
-    }
-    resetInput()
-
-    ctrlDown = false;
-    document.addEventListener('keydown', event => {
-      console.log('DOWN', event.keyCode);
-    if(event.keyCode === 17) {
-      ctrlDown = true
-    }
-    })
-
-    document.addEventListener('keyup', event => {
-      console.log('UP', event.keyCode);
-    if(event.keyCode === 27 || (event.keyCode === 67 && ctrlDown)) {
-      console.log("SIGINT")
-      resetInput()
-    }
-    if(event.keyCode === 13) {
-        event.preventDefault()
-      const args = i.value.toString().trim().split(' ').map(applyEnvironment)
-
-      const input = args.shift()
-
-      if(input === "clear") {
-      o.innerHTML = '';
-      resetInput()
-      return;
-      }
-
-      if(input.indexOf('=') > 0) {
-      const variable = i.value.toString().trim().split('=')
-      const varName = variable.shift()
-
-      environment[varName] = {
-        value: variable.join("=")
-      }
-
-      resetInput();
-      return
-      }
-
-      const cln = p.cloneNode(true)
-      cln.removeAttribute('id')
-      console.log(cln.querySelectorAll('[id]').forEach(n => {
-        n.removeAttribute('id')
-        n.setAttribute('readonly', true)
-      }));
-
-      o.appendChild(cln)
-
-      if(typeof result === 'string') {
-        const output = document.createElement('div')
-        output.innerHTML = result
-      o.appendChild(output)
-        resetInput()
-      } else if(typeof result === 'function') {
-      const gen = result();
-      p.style.display = 'none'
-      intervalId = setInterval(() => {
-        const {value, done} = gen.next();
-          const output = document.createElement('div')
-        if(done) {
-          resetInput();
-        } else {
-          output.innerHTML = value
-          o.appendChild(output);
-        }
-      }, 0)
-      }
-    }
-    })
+    shell.browser(win)
   }
 }(typeof window === 'undefined' ? false : window));
