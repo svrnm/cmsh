@@ -3,9 +3,9 @@
     font-weight: 200 900;
     font-style: normal;
     font-stretch: normal;
-    src: url('./WOFF2/VAR/SourceCodeVariable-Roman.ttf.woff2') format('woff2'),
-         url('./WOFF/VAR/SourceCodeVariable-Roman.ttf.woff') format('woff'),
-         url('./VAR/SourceCodeVariable-Roman.ttf') format('truetype');
+    src: url('./fonts/WOFF2/VAR/SourceCodeVariable-Roman.ttf.woff2') format('woff2'),
+         url('./fonts/WOFF/VAR/SourceCodeVariable-Roman.ttf.woff') format('woff'),
+         url('./fonts/VAR/SourceCodeVariable-Roman.ttf') format('truetype');
 }
 
 @font-face{
@@ -13,9 +13,9 @@
     font-weight: 200 900;
     font-style: italic;
     font-stretch: normal;
-    src: url('./WOFF2/VAR/SourceCodeVariable-Italic.ttf.woff2') format('woff2'),
-         url('./WOFF/VAR/SourceCodeVariable-Italic.ttf.woff') format('woff'),
-         url('./VAR/SourceCodeVariable-Italic.ttf') format('truetype');
+    src: url('./fonts/WOFF2/VAR/SourceCodeVariable-Italic.ttf.woff2') format('woff2'),
+         url('./fonts/WOFF/VAR/SourceCodeVariable-Italic.ttf.woff') format('woff'),
+         url('./fonts/VAR/SourceCodeVariable-Italic.ttf') format('truetype');
 }
 
 :root {
@@ -38,9 +38,9 @@
 	--debug-border:     0px;
 }
 
-html, body, input {
-  background:  var(--solarized-base03);
-  color: var(--solarized-base0);
+html, body, input, a.command-hint {
+  background:  var(--solarized-base3);
+  color: var(--solarized-base03);
   font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
 }
 
@@ -58,9 +58,8 @@ html, body, input {
 .old-prompt-statement,
 #prompt-statement {
   border: var(--debug-border) solid red;
-  flex-grow 1;
-  color: var(--solarized-base3);
-  background: var(--solarized-base1)
+  color: var(--solarized-base02);
+  background: var(--solarized-base2)
 }
 
 .old-prompt-input,
@@ -72,4 +71,22 @@ html, body, input {
 
 #prompt-input:focus {
   outline: none;
+}
+
+a.command-hint {
+  
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body, input, a.command-hint {
+    background:  var(--solarized-base03);
+    color: var(--solarized-base0);
+    font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
+  }
+
+  .old-prompt-statement,
+  #prompt-statement {
+    color: var(--solarized-base3);
+    background: var(--solarized-base1)
+  }
 }
