@@ -1,153 +1,40 @@
-import Environment from './Environment'
-import FileSystem from './FileSystem'
-import buildCmdLine from '../functions/buildCmdLine'
+import Environment from './Environment.js'
+import FileSystem from './FileSystem.js'
+import RemoteFile from './RemoteFile.js'
+import buildCmdLine from '../functions/buildCmdLine.js'
+import baseFs from '../fs/base.js'
 
 class Shell {
-  constructor(env, files) {
+  constructor(env, baseFs) {
     this.inProcess = false
     this.sigIntReceived = false
     this.environment = new Environment(env, this)
-    this.fileSystem = new FileSystem(files, this.environment, this)
-    this.console = console
+    this.fileSystem = new FileSystem(baseFs, this.environment, this)
+this.console = console
     this.rl = {
       close: () => {}
     }
     this.focus = () => {}
   }
 
-  static start(win, env) {
-    /* Base FS */
-    const fs = {
-      '/': {
-        children: {
-          bin: {
-            children: {
-              echo: (args, shell, out) => {
-                out(args.join(' '))
-                return 0
-              },
-              cat: (args, shell, out, err) => {
-                const file = shell.getPath(args[0])
-                if (file === false) {
-                  err(`cat: ${args[0]}: No such file or directory`)
-                  return 1
-                }
-                if (file.content) {
-                  out(file.content.toString())
-                  return 0
-                }
-                return 1
-              },
-              cd: (args, shell, out, err) => {
-                const p = shell.getPath(args[0])
-                if (p === false) {
-                  err(`cd: No such file or directory: ${args[0]}`)
-                  return 1
-                }
-                if (p.children) {
-                  shell.setenv('PWD', p.fullPath)
-                  return null
-                }
-                err(`cd: not a directory ${args[0]}`)
-                return 1
-              },
-              ls: (args, shell, out, err) => {
-                const p = shell.getPath(args[0])
-                if (p === false) {
-                  out(`ls: No such file or directory: ${args[0]}`)
-                  return 1
-                }
-                if (p.children) {
-                  out(Object.keys(p.children).sort().join(' '))
-                  return 0
-                }
-                out(p.basename)
-                return 0
-              },
-              env: (args, shell, out, err) => {
-                out(shell.environment.toString())
-                return 0
-              },
-              pwd: (args, shell, out, err) => {
-                out(shell.getenv("PWD"))
-                return 0
-              },
-              whoami: (args, shell, out, err) => {
-                out(shell.getenv('USER'))
-                return 0
-              },
-              yes: (args, shell, out, err) => {
-                /*return shell.setInterval(() => {
-                    out('yes')
-                })*/
-                return shell.interruptible(function*() {
-                  while (true) {
-                    out('yes')
-                    yield
-                  }
-                  return 0
-                })
-              },
-              seq: (args, shell, out, err) => {
-                let counter = parseInt(args[0])
-                const limit = parseInt(args[1])
-                return shell.interruptible(function*() {
-                  while (counter <= limit) {
-                    out(counter++)
-                    yield
-                  }
-                  return 0
-                })
-              }
-            }
-          },
-          etc: {
-            children: {
-              motd: 'Welcome to cm.sh, $USER!'
-            }
-          },
-          tmp: {
-            writeable: true,
-            children: {
-
-            }
-          },
-          usr: {
-            children: {
-              bin: {
-                children: {
-                  date: (args, shell, out, err) => {
-                    out((new Date()).toDateString());
-                    return 0
-                  },
-                  touch: (args, shell) => {
-                    const r = args.map(arg => {
-                      const file = shell.createFile(arg)
-                      if (file) {
-                        return ''
-                      }
-                      return `touch: ${arg}: Permission denied`
-                    }).filter(e => e !== null).join('\n')
-
-                    if (r !== '') {
-                      shell.err(r)
-                      return 1
-                    }
-                    return 0
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
+  static start(win, env, fileSystems = {}) {
     const shell = new Shell(Object.assign({
       '?': 0,
-      'PWD': '/',
+      'PWD': env.HOME || '/',
       PATH: '/bin/:/usr/bin/:/usr/local/bin'
-    }, env), fs)
+    }, env), baseFs)
+
+    if(typeof fileSystems === 'function') {
+      fileSystems = fileSystems((remotePath) => {
+        return new RemoteFile(remotePath)
+      })
+    }
+
+    Object.keys(fileSystems).forEach(mountPoint => {
+      shell.mount(fileSystems[mountPoint], mountPoint)
+    })
+
+    shell.chmod('/', '-w')
 
     if (win === false) {
       shell.readLine(process, require('readline'))
@@ -158,8 +45,17 @@ class Shell {
     return shell
   }
 
+  chmod(path, mode) {
+    return this.fileSystem.chmod(path, mode)
+  }
+
+  mount(files, mountPoint = '/mnt') {
+    return this.fileSystem.mount(files, mountPoint)
+  }
+
   getPrompt() {
-    return this.hasenv('PS1') ? this.getenv('PS1').replace('\\u', this.getenv('USER')).replace('\\h', this.getenv('HOSTNAME')).replace('\\w', this.getenv('PWD')) : '$'
+    const dir = this.getenv('PWD') === this.getenv('HOME') ? '~' : this.getenv('PWD')
+    return this.hasenv('PS1') ? this.getenv('PS1').replace('\\u', this.getenv('USER')).replace('\\h', this.getenv('HOSTNAME')).replace('\\w', dir) : '$'
   }
 
   getPath(path = '') {
@@ -197,6 +93,10 @@ class Shell {
 
   getenv(key) {
     return this.environment.get(key)
+  }
+
+  applyenv(str) {
+    return this.environment.applyOnString(str)
   }
 
   browser(window) {
@@ -248,11 +148,12 @@ class Shell {
 
     this.console = {
       log: function() {
-        output.innerHTML += `<div>${Array.from(arguments).join(' ')}</div>`
+        output.innerHTML += `<div>${Array.from(arguments).join(' ').replaceAll('\n', '<br>')}</div>`
         console.log.apply(console, arguments);
       },
       error: function() {
         console.error.apply(console, arguments);
+        output.innerHTML += `<div>${Array.from(arguments).join(' ').replaceAll('\n', '<br>')}</div>`
       },
       clear: function() {
         output.innerHTML = ''
@@ -393,6 +294,12 @@ class Shell {
     return process.stdout.rows
   }
 
+  in() {
+    return new Promise((resolve, reject) => {
+      resolve()
+    })
+  }
+
   out(str) {
     this.console.log(str)
   }
@@ -455,32 +362,52 @@ class Shell {
         return
       }
 
+      let inFn = this.in.bind(this)
       let out = this.out.bind(this)
-      let fileHandles = []
+      let err = this.err.bind(this)
+      let outHandles = []
+      let inHandles = []
+
+      console.log('test')
+
       if (redirections.length > 0) {
-        fileHandles = redirections.map(redirection => {
+        outHandles = redirections.filter(r => r.mode !== 'read').map(redirection => {
           return this.openFile(redirection.target, redirection.mode)
         })
-        out = (str) => {
-          fileHandles.forEach(fh => {
-            if (fh.mode === 'error') {
-              this.err(`${input}: ${fh.error}`)
-              return
-            }
-            fh.write(str)
-          })
+        inHandles = redirections.filter(r => r.mode === 'read').map(redirection => {
+          return this.openFile(redirection.target, redirection.mode)
+        })
+        if(inHandles.length > 0) {
+        inFn = () => {
+            return Promise.all(inHandles.map(fh => {
+              return fh.read()
+            })).then(results => {
+              return results.join('\n')
+            })
+          }
+        }
+        if(outHandles.length > 0) {
+          out = (str) => {
+            outHandles.forEach(fh => {
+              if (fh.mode === 'error') {
+                this.err(`${input}: ${fh.error}`)
+                return
+              }
+              fh.write(str)
+            })
+          }
         }
       }
 
-      const result = executables[input].content(args, this, out, this.err)
+      const result = executables[input].content(args, this, out, err, inFn)
 
       if (result instanceof Promise) {
         result.then(r => {
-          fileHandles.forEach(fh => fh.close())
+          outHandles.forEach(fh => fh.close())
           resolve(r)
         })
       } else {
-        fileHandles.forEach(fh => fh.close())
+        outHandles.forEach(fh => fh.close())
         resolve(result)
       }
     })

@@ -34,13 +34,21 @@
       continue;
     }
 
-    if ([" ", ">"].includes(previous) && current === " ") {
+    if ([" ", ">", "<"].includes(previous) && current === " ") {
       continue;
     }
 
-    if (current === '>') {
+    if (current === '>' || current === '<') {
       state = 'REDIRECTION'
-      redirectionMode = previous === '>' ? 'append' : 'overwrite'
+      redirectionMode = (() => {
+        if(current === '<') {
+          return 'read'
+        }
+        if(previous === '>') {
+          return 'append'
+        }
+        return 'overwrite'
+      })()
       continue;
     }
 

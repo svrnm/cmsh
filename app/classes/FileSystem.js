@@ -1,7 +1,12 @@
-import FileHandle from './FileHandle'
+import FileHandle from './FileHandle.js'
+import RemoteFile from './RemoteFile.js'
 
 class FileSystem {
   constructor(files) {
+    this.files = this._createFileSystem(files)
+  }
+
+  _createFileSystem(files) {
     const walk = (files) => {
       return (result, key) => {
         const value = files[key]
@@ -13,6 +18,14 @@ class FileSystem {
                 writeable: value.writeable === true,
                 type: 'directory',
                 children: Object.keys(value.children).reduce(walk(value.children), {})
+              }
+            }
+            if (value instanceof RemoteFile) {
+              result[key] = {
+                type: 'file',
+                writeable: false,
+                executable: false,
+                content: value
               }
             }
             break;
@@ -35,7 +48,19 @@ class FileSystem {
         return result
       }
     }
-    this.files = Object.keys(files).reduce(walk(files), {})
+    return Object.keys(files).reduce(walk(files), {})
+  }
+
+  mount(files, mountPoint = '/mnt') {
+    let mp = this.get(mountPoint, true)
+    if(!mp) {
+      mp = this.createDirectory(mountPoint, true)
+    }
+    if(!mp) {
+      return false
+    }
+    mp.children = this._createFileSystem(files.children)
+    return true
   }
 
   has(path) {
@@ -53,7 +78,7 @@ class FileSystem {
     return new FileHandle(file, mode)
   }
 
-  create(path, pointer = false) {
+  _createFromObject(path, what, pointer) {
     const parts = path.split('/')
     const file = parts.pop()
     const directory = this.get(parts.join('/'), true)
@@ -61,12 +86,38 @@ class FileSystem {
       return false
     }
     if (!directory.children[file]) {
-      directory.children[file] = {
-        type: 'file',
-        writeable: true,
-        content: ''
-      }
+      directory.children[file] = what
       return this.get(path, pointer)
+    }
+    return false
+  }
+
+  createDirectory(path, pointer = false) {
+    return this._createFromObject(path, {
+      type: 'directory',
+      children: {},
+      writeable: false
+    }, pointer)
+  }
+
+  create(path, pointer = false) {
+    return this._createFromObject(path, {
+      type: 'file',
+      writeable: true,
+      content: ''
+    }, pointer)
+  }
+
+  chmod(path, mode) {
+    const pointer = this.get(path, true)
+    if(!pointer) {
+      return false
+    }
+    if(mode.includes('-w')) {
+      pointer.writeable = false
+    }
+    if(mode.includes('+w')) {
+      pointer.writeable = true
     }
   }
 
