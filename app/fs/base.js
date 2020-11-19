@@ -118,6 +118,19 @@ export default {
                 out((new Date()).toDateString());
                 return 0
               },
+	      fortune: (args, shell, out, err) => {
+		const data = [
+			"Darmok and Jalad… at Tanagra.",
+			"Shaka, when the walls fell.",
+			"Temba, his arms wide!",
+			"Resistance is futile.",
+			"Live long and prosper",
+			"I believe in coincidences. Coincidences happen every day. But I don't trust coincidences.",
+			"The truth is usually just an excuse for lack of imagination.",
+		];
+		out(data[Math.floor(Math.random() * data.length)])
+		return 0;
+	      },
               touch: (args, shell, out, err) => {
                 const r = args.map(arg => {
                   const file = shell.createFile(arg)

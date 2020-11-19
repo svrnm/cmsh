@@ -212,7 +212,7 @@ this.console = console
           }
           hints.innerHTML = ''
           console.log(line)
-          output.innerHTML += `<div class="old-prompt"><span class="old-prompt-statement">${this.getPrompt()}</span><span class="old-prompt-input">${line}</span></div>`
+          output.innerHTML += `<div class="old-prompt"><span class="old-prompt-statement">${this.getPrompt()}</span><input disabled class="old-prompt-input" value="${line}" /></div>`
           promptStatement.style.display = 'none';
           this.execute(line).then(result => {
             this.setenv('?', result)
@@ -344,7 +344,7 @@ this.console = console
         redirections
       } = buildCmdLine(value, this.environment)
 
-      // console.log(variables, args, redirections)
+      console.log('?', variables, args, redirections)
 
       if (args.length === 0) {
         Object.keys(variables).forEach(key => this.setenv(key, variables[key].value))

@@ -12,13 +12,15 @@ import Shell from './classes/Shell.js'
     'home': {
         'children': {
           'svrnm': {
-            'children': {}
+            'children': {
+		'hello_world': $('files/hello_world')
+	    }
           }
         }
     },
     etc: {
       children: {
-        motd: $('http://svrnm.de/files/motd')
+        motd: $('files/motd')
       }
     },
     'var': {
