@@ -2,7 +2,7 @@
   function buildCmdLine(value, environment) {
   // We add a space to the end as termination so the last element
   // is also stored
-  const chars = (value + ' ').replaceAll(/([<>]+)/g, ' $1 ').split('');
+  const chars = (value + ' ').replace(/([<>]+)/g, ' $1 ').split('');
   let input = ''
   let variableName = ''
   let variables = {}

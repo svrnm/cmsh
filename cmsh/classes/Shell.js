@@ -17,7 +17,7 @@ this.console = console
     this.focus = () => {}
   }
 
-  static start(win, env, fileSystems = {}) {
+  static start(scope, env, fileSystems = {}) {
     const shell = new Shell(Object.assign({
       '?': 0,
       'PWD': env.HOME || '/',
@@ -36,10 +36,10 @@ this.console = console
 
     shell.chmod('/', '-w')
 
-    if (win === false) {
-      shell.readLine(process, require('readline'))
+    if (scope.document) {
+      shell.browser(scope)
     } else {
-      shell.browser(win)
+      shell.readLine(process, scope)
     }
 
     return shell

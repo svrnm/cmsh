@@ -1,16 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: http://ogp.me/ns#">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="default.css">
+<meta property="og:type" content="website"/>
+<meta property="og:image" content="https://svrnm.de/teaser.png"/>
+<meta property="og:url" content="https://svrnm.de"/>
+<meta property="og:title" content="#!/bin/cmsh – svrnm.de"/>
+<meta property="og:description" content="Welcome to my personal content management shell. Feel free to explore."/>
+<script>
+const l = window.location.href+'';
+if (l.indexOf('localhost') < 0 && l.indexOf('http://')==0){
+    window.location.href = l.replace('http://','https://');
+}
+</script>
 <title>#!/bin/cmsh</title>
 <body>
 <div id="output">
 </div>
 <form id="prompt-container">
   <label for="prompt-input" id="prompt-statement">$</label>
-  <input value="" id="prompt-input" type="text"  autocomplete="on" autocapitalize="off">
+  <input value="" id="prompt-input" type="text"  autocomplete="off" autocapitalize="off" />
 </form>
 <div id="hints">
 </div>
-<script type="module" src="./app/index.js"></script>
+<script type="module" src="./cmsh/index.js"></script>

@@ -1,20 +1,17 @@
-import Shell from './classes/Shell.js'
-
-(function(win) {
-  'use strict';
-
-  Shell.start(win, {
+export default {
+  environment: {
     USER: 'svrnm',
     HOSTNAME: 'svrnm.de',
     HOME: '/home/svrnm',
     PS1: '\\u@\\h \\w> '
-  }, ($) => ({
+  },
+  fileSystems: ($) => ({
     'home': {
         'children': {
           'svrnm': {
             'children': {
-		'hello_world': $('files/hello_world')
-	    }
+    'hello_world': $('files/hello_world')
+      }
           }
         }
     },
@@ -33,6 +30,5 @@ import Shell from './classes/Shell.js'
         }
       }
     }
-  }))
-
-}(typeof window === 'undefined' ? false : window));
+  })
+}
