@@ -8,6 +8,14 @@ export default {
             out(args.join(' '))
             return 0
           },
+          debug: (args, shell, out, err, inFn) => {
+            return shell.interruptible(function*() {
+              //shell.console.clear()
+              while (true) {
+                yield
+              }
+            })
+          },
           cat: (args, shell, out, err) => {
             return new Promise((resolve, reject) => {
               const file = shell.openFile(args[0], 'read')
@@ -96,6 +104,10 @@ export default {
               }
               return 0
             })
+          },
+          su: (args, shell, out, err) => {
+            out('¯\\_(ツ)_/¯')
+            shell.setenv('USER', 'root')
           }
         }
       },
@@ -118,19 +130,19 @@ export default {
                 out((new Date()).toDateString());
                 return 0
               },
-	      fortune: (args, shell, out, err) => {
-		const data = [
-			"Darmok and Jalad… at Tanagra.",
-			"Shaka, when the walls fell.",
-			"Temba, his arms wide!",
-			"Resistance is futile.",
-			"Live long and prosper",
-			"I believe in coincidences. Coincidences happen every day. But I don't trust coincidences.",
-			"The truth is usually just an excuse for lack of imagination.",
-		];
-		out(data[Math.floor(Math.random() * data.length)])
-		return 0;
-	      },
+              fortune: (args, shell, out, err) => {
+                const data = [
+                  "Darmok and Jalad… at Tanagra.",
+                  "Shaka, when the walls fell.",
+                  "Temba, his arms wide!",
+                  "Resistance is futile.",
+                  "Live long and prosper",
+                  "I believe in coincidences. Coincidences happen every day. But I don't trust coincidences.",
+                  "The truth is usually just an excuse for lack of imagination.",
+                ];
+                out(data[Math.floor(Math.random() * data.length)])
+                return 0;
+              },
               touch: (args, shell, out, err) => {
                 const r = args.map(arg => {
                   const file = shell.createFile(arg)
@@ -139,7 +151,6 @@ export default {
                   }
                   return `touch: ${arg}: Permission denied`
                 }).filter(e => e !== null).join('\n')
-
                 if (r !== '') {
                   err(r)
                   return 1

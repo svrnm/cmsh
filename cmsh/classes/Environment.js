@@ -23,7 +23,9 @@ class Environment {
   }
 
   toString() {
-    return JSON.stringify(this.values)
+    return Object.keys(this.values).map(key => {
+      return `${key}=${this.values[key].value}`
+    }).join('\n')
   }
 
   applyOnString(str, localVariables = {}) {

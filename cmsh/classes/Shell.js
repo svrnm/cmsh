@@ -11,10 +11,8 @@ class Shell {
     this.environment = new Environment(env, this)
     this.fileSystem = new FileSystem(baseFs, this.environment, this)
 this.console = console
-    this.rl = {
-      close: () => {}
-    }
     this.focus = () => {}
+    this.exit = () => {}
   }
 
   static start(scope, env, fileSystems = {}) {
@@ -146,6 +144,10 @@ this.console = console
       window.scrollTo(0, window.document.body.scrollHeight);
     }
 
+    this.exit = () => {
+      window.document.body.innerHTML='Goodbye.'
+    }
+
     this.console = {
       log: function() {
         output.innerHTML += `<div>${Array.from(arguments).join(' ').replaceAll('\n', '<br>')}</div>`
@@ -175,14 +177,47 @@ this.console = console
         // Auto Complete
         if(event.keyCode === 9) {
           event.preventDefault()
-          Object.keys(this.getExecutablesInPath()).forEach(cmd => {
-            const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(promptInput.value))
+          const args = promptInput.value.split(' ')
+          // Only one arg so we expand commands
+          if(args.length === 1) {
+              const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(promptInput.value))
+              if(hits.length === 1) {
+                promptInput.value = hits.pop()
+              } else {
+                hints.innerHTML = hits.map(e => `<a class="command-hint" href="#${e}">${e}</a>`).join('\t')
+              }
+          } else {
+            // expand on path
+            const path = args.pop()
+            const pwd = this.getenv('PWD') + '/'
+            const parts = ((path.startsWith('/') ? '' : pwd) + path).split('/')
+            const file = parts.pop()
+
+            console.log(path, parts, file)
+
+            const directory = this.fileSystem.get(parts.join('/'), true)
+            const hits = Object.keys(directory.children).filter(e => e.startsWith(file))
+            console.log(file, Object.keys(directory.children), hits)
             if(hits.length === 1) {
-              promptInput.value = hits.pop()
+              let v = parts.join('/') + '/' + hits.pop()
+                console.log(v, pwd)
+              if(v.startsWith(pwd)) {
+                v = v.substr(pwd.length)
+                console.log(v)
+              }
+              promptInput.value = args.join(' ') + ' ' + v
             } else {
-              hints.innerHTML = hits.map(e => `<a class="command-hint" href="#${e}">${e}</a>`).join('\t')
+              hints.innerHTML = hits.map(hit => {
+                let v = parts.join('/') + '/' + hit
+                if(v.startsWith(pwd)) {
+                  v = v.substr(pwd.length)
+                  console.log(v)
+                }
+                console.log(hit, v)
+                return `<a class="command-hint" href="#${args.join(' ') + ' ' + v}">${v}</a>`
+              }).join('\t')
             }
-          })
+          }
         }
       })
       document.addEventListener('keyup', event => {
@@ -206,6 +241,7 @@ this.console = console
         }
         if (event.keyCode === 13) {
           const line = promptInput.value
+          promptInput.value = ''
           event.preventDefault()
           if (this.inProcess) {
             return
@@ -219,7 +255,6 @@ this.console = console
             history.push(line)
             historyPointer = history.length
             promptStatement.innerHTML = this.getPrompt()
-            promptInput.value = ''
             promptStatement.style.display = 'block';
             promptInput.focus()
           })
@@ -278,7 +313,7 @@ this.console = console
 
     executables.exit = {
       executable: true,
-      content: () => this.rl.close()
+      content: () => this.exit()
     }
 
     executables.clear = {
@@ -320,10 +355,18 @@ this.console = console
           resolve(1)
           return
         }
-        const {
-          value,
-          done
-        } = generator.next()
+        const next = generator.next()
+        if(next instanceof Promise) {
+          next().then((value, done) => {
+            if (done) {
+              this.inProcess = false
+              resolve(value)
+              return
+            }
+            setImmediate(f)
+          })
+        }
+        const { value, done } = next
         if (done) {
           this.inProcess = false
           resolve(value)
