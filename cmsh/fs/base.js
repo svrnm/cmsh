@@ -10,10 +10,9 @@ export default {
           },
           debug: (args, shell, out, err, inFn) => {
             return shell.interruptible(function*() {
-              //shell.console.clear()
-              while (true) {
-                yield
-              }
+              return new Promise((resolve, reject) => {
+
+              })
             })
           },
           cat: (args, shell, out, err) => {

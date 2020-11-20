@@ -5,18 +5,16 @@ import buildCmdLine from '../functions/buildCmdLine.js'
 import baseFs from '../fs/base.js'
 
 class Shell {
-  constructor(env, baseFs) {
+  constructor(process, env, baseFs) {
+    this.process = process
     this.inProcess = false
     this.sigIntReceived = false
     this.environment = new Environment(env, this)
     this.fileSystem = new FileSystem(baseFs, this.environment, this)
-this.console = console
-    this.focus = () => {}
-    this.exit = () => {}
   }
 
-  static start(scope, env, fileSystems = {}) {
-    const shell = new Shell(Object.assign({
+  static async start(process, env, fileSystems = {}) {
+    const shell = new Shell(process, Object.assign({
       '?': 0,
       'PWD': env.HOME || '/',
       PATH: '/bin/:/usr/bin/:/usr/local/bin'
@@ -34,13 +32,81 @@ this.console = console
 
     shell.chmod('/', '-w')
 
-    if (scope.document) {
+    /*if (scope.document) {
       shell.browser(scope)
     } else {
       shell.readLine(process, scope)
-    }
+    }*/
+
+    /*(await process.run()).on(line => {
+      console.log(line)
+    })*/
+
+    const rl = await process.run(shell)
+
+    shell.execute('cat /etc/motd').then(r => {
+      rl.setPrompt(shell.getPrompt())
+      rl.prompt()
+
+      rl.on('line', (line) => {
+        console.log('WOOP', line)
+        if (shell.inProcess) {
+          return
+        }
+        shell.execute(line).then(result => {
+          shell.setenv('?', result)
+          rl.setPrompt(shell.getPrompt())
+          rl.prompt()
+        })
+      })
+    })
 
     return shell
+  }
+
+  exit() {
+    console.log('Goodbye.')
+    this.process.exit()
+  }
+
+  clear() {
+    this.process.clear()
+  }
+
+  completer(line) {
+    const args = line.split(' ')
+    // Only one arg so we expand commands
+    if(args.length === 1) {
+        const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(line))
+        return [hits, line]
+    } else {
+    // expand on path
+    const path = args.pop()
+    const pwd = this.getenv('PWD') + '/'
+    const parts = ((path.startsWith('/') ? '' : pwd) + path).split('/')
+    const file = parts.pop()
+
+    const directory = this.fileSystem.get(parts.join('/'), true)
+    const hits = Object.keys(directory.children).filter(e => e.startsWith(file)).map(hit => {
+        let v = parts.join('/') + '/' + hit
+        if(v.startsWith(pwd)) {
+          v = v.substr(pwd.length)
+        }
+        return args.join(' ') + ' ' + v
+      })
+      return [hits, line]
+    }
+  }
+
+  trap(signal) {
+    console.log('TRAP')
+    if(signal == 'SIGINT') {
+      if (this.inProcess) {
+        this.sigIntReceived = true
+      } else {
+        this.exit()
+      }
+    }
   }
 
   chmod(path, mode) {
@@ -97,7 +163,9 @@ this.console = console
     return this.environment.applyOnString(str)
   }
 
-  browser(window) {
+
+
+  browserOld(window) {
 
     let ctrlDown = false
 
@@ -122,6 +190,9 @@ this.console = console
       }
     }
     updateFromHash()
+    window.onhashchange = () => {
+      updateFromHash()
+    }
 
     /* Do not submit form on enter */
     promptContainer.addEventListener('submit', event => {
@@ -132,9 +203,7 @@ this.console = console
       promptInput.focus()
     }, true);
 
-    window.onhashchange = () => {
-      updateFromHash()
-    }
+
 
 
     promptStatement.innerHTML = this.getPrompt() + ''
@@ -144,9 +213,6 @@ this.console = console
       window.scrollTo(0, window.document.body.scrollHeight);
     }
 
-    this.exit = () => {
-      window.document.body.innerHTML='Goodbye.'
-    }
 
     this.console = {
       log: function() {
@@ -173,51 +239,6 @@ this.console = console
         console.log('DOWN', event.keyCode);
         if (event.keyCode === 17) {
           ctrlDown = true
-        }
-        // Auto Complete
-        if(event.keyCode === 9) {
-          event.preventDefault()
-          const args = promptInput.value.split(' ')
-          // Only one arg so we expand commands
-          if(args.length === 1) {
-              const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(promptInput.value))
-              if(hits.length === 1) {
-                promptInput.value = hits.pop()
-              } else {
-                hints.innerHTML = hits.map(e => `<a class="command-hint" href="#${e}">${e}</a>`).join('\t')
-              }
-          } else {
-            // expand on path
-            const path = args.pop()
-            const pwd = this.getenv('PWD') + '/'
-            const parts = ((path.startsWith('/') ? '' : pwd) + path).split('/')
-            const file = parts.pop()
-
-            console.log(path, parts, file)
-
-            const directory = this.fileSystem.get(parts.join('/'), true)
-            const hits = Object.keys(directory.children).filter(e => e.startsWith(file))
-            console.log(file, Object.keys(directory.children), hits)
-            if(hits.length === 1) {
-              let v = parts.join('/') + '/' + hits.pop()
-                console.log(v, pwd)
-              if(v.startsWith(pwd)) {
-                v = v.substr(pwd.length)
-                console.log(v)
-              }
-              promptInput.value = args.join(' ') + ' ' + v
-            } else {
-              hints.innerHTML = hits.map(hit => {
-                let v = parts.join('/') + '/' + hit
-                if(v.startsWith(pwd)) {
-                  v = v.substr(pwd.length)
-                  console.log(v)
-                }
-                console.log(hit, v)
-                return `<a class="command-hint" href="#${args.join(' ') + ' ' + v}">${v}</a>`
-              }).join('\t')
-            }
-          }
         }
       })
       document.addEventListener('keyup', event => {
@@ -263,40 +284,6 @@ this.console = console
     })
   }
 
-  readLine(process, readline) {
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      prompt: this.getPrompt(),
-      completer: (line) => {
-        const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(line))
-        return [hits, line];
-      }
-    })
-
-    this.execute('cat /etc/motd').then(r => {
-      this.rl.prompt()
-      this.rl.on('line', (line) => {
-        if (this.inProcess) {
-          return
-        }
-        this.execute(line).then(result => {
-          this.setenv('?', result)
-          this.rl.setPrompt(this.getPrompt())
-          this.rl.prompt()
-        })
-      }).on('close', () => {
-        process.exit(0);
-      }).on('SIGINT', () => {
-        if (this.inProcess) {
-          this.sigIntReceived = true
-        } else {
-          this.execute('exit')
-        }
-      })
-    })
-  }
-
   getExecutablesInPath() {
     const executables = this.environment.get('PATH').split(':').reduce((result, path) => {
       const files = this.fileSystem.get(path).children
@@ -313,12 +300,14 @@ this.console = console
 
     executables.exit = {
       executable: true,
-      content: () => this.exit()
+      content: () => {
+        this.exit()
+      }
     }
 
     executables.clear = {
       executable: true,
-      content: () => this.console.clear()
+      content: () => this.clear()
     }
 
     return executables
@@ -336,7 +325,7 @@ this.console = console
   }
 
   out(str) {
-    this.console.log(str)
+    this.process.log(str)
   }
 
   err(str) {
@@ -348,7 +337,6 @@ this.console = console
       this.inProcess = true
       const generator = fnc()
       const f = () => {
-        this.focus()
         if (this.sigIntReceived) {
           this.inProcess = false
           this.sigIntReceived = false
@@ -410,8 +398,6 @@ this.console = console
       let err = this.err.bind(this)
       let outHandles = []
       let inHandles = []
-
-      console.log('test')
 
       if (redirections.length > 0) {
         outHandles = redirections.filter(r => r.mode !== 'read').map(redirection => {

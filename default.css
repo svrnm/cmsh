@@ -38,39 +38,10 @@
 	--debug-border:     0px;
 }
 
-html, body, input, div, a.command-hint {
+html, body, a.command-hint {
   background:  var(--solarized-base3);
   color: var(--solarized-base03);
   font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
-}
-
-#output {
-  border: var(--debug-border) solid yellow;
-  margin-bottom: 4px;
-}
-
-#prompt-container {
-  display: block;
-  width: 100%;
-  display: flex;
-}
-
-.old-prompt-statement,
-#prompt-statement {
-  border: var(--debug-border) solid red;
-  color: var(--solarized-base02);
-  background: var(--solarized-base2)
-}
-
-.old-prompt-input,
-#prompt-input {
-  border: var(--debug-border) solid green;
-  font-size: 100%;
-  flex-grow: 5;
-}
-
-#prompt-input:focus {
-  outline: none;
 }
 
 a.command-hint {
@@ -78,15 +49,9 @@ a.command-hint {
 }
 
 @media (prefers-color-scheme: dark) {
-  html, body, div, input, a.command-hint {
+  html, body, a.command-hint {
     background:  var(--solarized-base03);
     color: var(--solarized-base0);
     font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
-  }
-
-  .old-prompt-statement,
-  #prompt-statement {
-    color: var(--solarized-base3);
-    background: var(--solarized-base1)
   }
 }
