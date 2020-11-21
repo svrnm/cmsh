@@ -48,6 +48,10 @@ a.command-hint {
 
 }
 
+#cmsh > span {
+  white-space: pre-wrap;
+}
+
 @media (prefers-color-scheme: dark) {
   html, body, a.command-hint {
     background:  var(--solarized-base03);

@@ -22,7 +22,7 @@ class Shell {
 
     if(typeof fileSystems === 'function') {
       fileSystems = fileSystems((remotePath) => {
-        return new RemoteFile(remotePath)
+        return new RemoteFile(process, remotePath)
       })
     }
 
@@ -32,16 +32,6 @@ class Shell {
 
     shell.chmod('/', '-w')
 
-    /*if (scope.document) {
-      shell.browser(scope)
-    } else {
-      shell.readLine(process, scope)
-    }*/
-
-    /*(await process.run()).on(line => {
-      console.log(line)
-    })*/
-
     const rl = await process.run(shell)
 
     shell.execute('cat /etc/motd').then(r => {
@@ -49,7 +39,6 @@ class Shell {
       rl.prompt()
 
       rl.on('line', (line) => {
-        console.log('WOOP', line)
         if (shell.inProcess) {
           return
         }
@@ -99,7 +88,6 @@ class Shell {
   }
 
   trap(signal) {
-    console.log('TRAP')
     if(signal == 'SIGINT') {
       if (this.inProcess) {
         this.sigIntReceived = true
@@ -329,7 +317,7 @@ class Shell {
   }
 
   err(str) {
-    this.console.error(str)
+    this.process.error(str)
   }
 
   interruptible(fnc) {
@@ -375,7 +363,7 @@ class Shell {
         redirections
       } = buildCmdLine(value, this.environment)
 
-      console.log('?', variables, args, redirections)
+      // console.log('?', variables, args, redirections)
 
       if (args.length === 0) {
         Object.keys(variables).forEach(key => this.setenv(key, variables[key].value))

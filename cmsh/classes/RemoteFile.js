@@ -1,5 +1,6 @@
 class RemoteFile {
-  constructor(path) {
+  constructor(process, path) {
+    this.process = process
     this.path = path
   }
 
@@ -7,11 +8,9 @@ class RemoteFile {
     return this.path
   }
 
-  fetch() {
-    return fetch(this.path).then(resp => {
-      console.log(resp)
-      return resp.text()
-    })
+  async fetch() {
+    const data = await this.process.fetch(this.path)
+    return data
   }
 }
 
