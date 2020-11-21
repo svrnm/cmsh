@@ -15,6 +15,10 @@ class FileHandle {
 
   read(data) {
     return new Promise((resolve, reject) => {
+      if(this.mode === 'error') {
+        reject(this.error)
+        return
+      }
       if(this.file.content instanceof RemoteFile) {
         this.file.content.fetch().then(content => {
           resolve(content)

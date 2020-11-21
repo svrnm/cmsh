@@ -17,7 +17,8 @@ export default {
     },
     etc: {
       children: {
-        motd: $('files/motd')
+        motd: $('files/motd'),
+        imprint: $('files/imprint')
       }
     },
     'var': {

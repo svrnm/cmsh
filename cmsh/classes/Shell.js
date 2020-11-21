@@ -36,7 +36,7 @@ class Shell {
 
     shell.execute('cat /etc/motd').then(r => {
       rl.setPrompt(shell.getPrompt())
-      rl.prompt()
+
 
       rl.on('line', (line) => {
         if (shell.inProcess) {
@@ -48,6 +48,8 @@ class Shell {
           rl.prompt()
         })
       })
+
+      rl.prompt()
     })
 
     return shell
@@ -151,127 +153,6 @@ class Shell {
     return this.environment.applyOnString(str)
   }
 
-
-
-  browserOld(window) {
-
-    let ctrlDown = false
-
-    const history = [
-
-    ]
-
-    let historyPointer = 0
-
-    const document = window.document
-
-    const [promptContainer, promptInput, promptStatement, output] = ['prompt-container', 'prompt-input', 'prompt-statement', 'output'].map(e => document.getElementById(e));
-
-    /* Optimize input for mobile */
-    //promptInput.setAttribute('autocomplete', 'off')
-    promptInput.setAttribute('role', 'presentation')
-    promptInput.focus()
-    const updateFromHash = () => {
-      promptInput.value = decodeURIComponent(document.location.hash.substr(1))
-      if(promptInput.value.endsWith('⏎')) {
-        promptInput.value = promptInput.value.substr(1)
-      }
-    }
-    updateFromHash()
-    window.onhashchange = () => {
-      updateFromHash()
-    }
-
-    /* Do not submit form on enter */
-    promptContainer.addEventListener('submit', event => {
-      event.preventDefault()
-    })
-
-    document.addEventListener('focusout', function() {
-      promptInput.focus()
-    }, true);
-
-
-
-
-    promptStatement.innerHTML = this.getPrompt() + ''
-
-    this.focus = () => {
-      promptInput.focus()
-      window.scrollTo(0, window.document.body.scrollHeight);
-    }
-
-
-    this.console = {
-      log: function() {
-        output.innerHTML += `<div>${Array.from(arguments).join(' ').replaceAll('\n', '<br>')}</div>`
-        console.log.apply(console, arguments);
-      },
-      error: function() {
-        console.error.apply(console, arguments);
-        output.innerHTML += `<div>${Array.from(arguments).join(' ').replaceAll('\n', '<br>')}</div>`
-      },
-      clear: function() {
-        output.innerHTML = ''
-      }
-    }
-
-    Object.keys(this.getExecutablesInPath()).forEach(e => {
-      /*const option = document.createElement("option")
-      option.setAttribute('value', e)
-      completer.appendChild(option)*/
-    })
-
-    this.execute('cat /etc/motd').then(r => {
-      document.addEventListener('keydown', event => {
-        console.log('DOWN', event.keyCode);
-        if (event.keyCode === 17) {
-          ctrlDown = true
-        }
-      })
-      document.addEventListener('keyup', event => {
-        console.log('UP', event.keyCode);
-        if (event.keyCode === 27 || (event.keyCode === 67 && ctrlDown)) {
-          console.log("SIGINT")
-          if (this.inProcess) {
-            this.sigIntReceived = true
-          }
-        }
-        // Introduce some extra checks that the cursor is at the end of the input
-        if (event.keyCode === 38 || event.keyCode === 40) {
-          if (event.keyCode === 38) {
-            // UP
-            historyPointer = historyPointer > 0 ? historyPointer - 1 : 0
-          } else if (event.keyCode === 40) {
-            // DOWN
-            historyPointer = historyPointer < history.length - 1 ? historyPointer + 1 : history.length - 1
-          }
-          promptInput.value = history[historyPointer]
-        }
-        if (event.keyCode === 13) {
-          const line = promptInput.value
-          promptInput.value = ''
-          event.preventDefault()
-          if (this.inProcess) {
-            return
-          }
-          hints.innerHTML = ''
-          console.log(line)
-          output.innerHTML += `<div class="old-prompt"><span class="old-prompt-statement">${this.getPrompt()}</span><input disabled class="old-prompt-input" value="${line}" /></div>`
-          promptStatement.style.display = 'none';
-          this.execute(line).then(result => {
-            this.setenv('?', result)
-            history.push(line)
-            historyPointer = history.length
-            promptStatement.innerHTML = this.getPrompt()
-            promptStatement.style.display = 'block';
-            promptInput.focus()
-          })
-        }
-      })
-    })
-  }
-
   getExecutablesInPath() {
     const executables = this.environment.get('PATH').split(':').reduce((result, path) => {
       const files = this.fileSystem.get(path).children
@@ -320,11 +201,11 @@ class Shell {
     this.process.error(str)
   }
 
-  interruptible(fnc) {
+  async interruptible(fnc) {
     return new Promise((resolve, reject) => {
       this.inProcess = true
       const generator = fnc()
-      const f = () => {
+      const f = async () => {
         if (this.sigIntReceived) {
           this.inProcess = false
           this.sigIntReceived = false
@@ -332,31 +213,20 @@ class Shell {
           return
         }
         const next = generator.next()
-        if(next instanceof Promise) {
-          next().then((value, done) => {
-            if (done) {
-              this.inProcess = false
-              resolve(value)
-              return
-            }
-            setImmediate(f)
-          })
-        }
-        const { value, done } = next
-        if (done) {
+        await next.value
+        if (next.done) {
           this.inProcess = false
-          resolve(value)
+          resolve(next.value)
           return
         }
-        setImmediate(f)
+        setTimeout(f)
       }
-      setImmediate(f)
+      setTimeout(f)
     })
   }
 
   execute(value) {
     return new Promise((resolve, reject) => {
-
       const {
         variables,
         args,
@@ -419,8 +289,10 @@ class Shell {
       const result = executables[input].content(args, this, out, err, inFn)
 
       if (result instanceof Promise) {
+        this.process.hold()
         result.then(r => {
           outHandles.forEach(fh => fh.close())
+          this.process.release()
           resolve(r)
         })
       } else {

@@ -12,23 +12,32 @@ class BrowserProcess extends Process {
   constructor(window) {
     super(window)
     console.log('Running in Browser')
+    this.firstPrompt = true
     this.window = window
     this.body = window.document.getElementById("cmsh")
     this.outputElement = window.document.querySelector("#cmsh > span")
     this.hintElement = window.document.getElementById("hints")
+    this.cancelButton = window.document.getElementById("cancel-button")
+    this.symbolHelper = window.document.getElementById("symbol")
     this.promptStr = '$'
     this.history = []
     this.historyPointer = 0
     this.onLine = () => {}
     this.listener = e => {
+      if(e.metaKey) {
+        return
+      }
       console.log(e.key, e)
-      e.preventDefault()
+
       if(e.ctrlKey) {
         if(e.key === 'c') {
+          e.preventDefault()
           this.shell.trap('SIGINT')
         }
         return
       }
+
+      e.preventDefault()
       if(e.key.length === 1) {
         this.output(e.key)
       }
@@ -39,12 +48,7 @@ class BrowserProcess extends Process {
           break;
         case 13:
           // ENTER
-          this.hintElement.style.display = 'none'
-          const l = this.outputElement.textContent
-          this.history.push(l)
-          this.historyPointer = history.length - 1
-          this.lineBreak()
-          this.onLine(l)
+          this.sendEnter()
           break;
         case 9:
           // Tab
@@ -70,6 +74,23 @@ class BrowserProcess extends Process {
     }
   }
 
+  hold() {
+    this.cancelButton.style.display = 'block'
+  }
+
+  release() {
+    this.cancelButton.style.display = 'none'
+  }
+
+  sendEnter() {
+    this.hintElement.style.display = 'none'
+    const l = this.outputElement.textContent
+    this.history.push(l)
+    this.historyPointer = history.length - 1
+    this.lineBreak()
+    this.onLine(l)
+  }
+
   hint(hints) {
     console.log(hints)
     this.hintElement.style.display = 'block'
@@ -86,6 +107,7 @@ class BrowserProcess extends Process {
   }
 
   focus() {
+    // this.outputElement.focus()
     this.window.scrollTo(0, this.window.document.body.scrollHeight)
   }
 
@@ -101,34 +123,43 @@ class BrowserProcess extends Process {
     this.outputElement.textContent = this.outputElement.textContent.slice(0, -1)
   }
 
-  lineBreak() {
-    console.log("LINEBREAK")
-    const br = document.createElement('br')
-    this.body.appendChild(br)
+  createNewOutputArea() {
     const span = document.createElement('span')
     this.body.appendChild(span)
     this.outputElement = span
     this.focus()
+  }
+
+  lineBreak() {
+    console.log("LINEBREAK")
+    const br = document.createElement('br')
+    this.body.appendChild(br)
+    this.createNewOutputArea()
   }
 
   prompt() {
     console.log("PROMPT")
     const p = document.createElement('span')
-    const span = document.createElement('span')
     p.textContent = this.promptStr
     this.body.appendChild(p)
+    const span = document.createElement('span')
     this.body.appendChild(span)
     this.outputElement = span
+    if(this.firstPrompt) {
+      this.firstPrompt = false
+      this.updateFromHash()
+    }
     this.focus()
   }
 
   clear() {
     this.body.innerHTML=''
+    this.createNewOutputArea()
   }
 
   exit() {
     this.window.document.removeEventListener('keydown', this.listener)
-    this.body.innerHTML='Good Bye'
+    this.window.document.body.innerHTML='Good Bye'
   }
 
   async fetch(file) {
@@ -142,6 +173,7 @@ class BrowserProcess extends Process {
       data+='\n'
     }
     this.output(data)
+    this.focus()
     console.log('=== LOG ===')
     console.log.apply(console, arguments);
   }
@@ -150,20 +182,63 @@ class BrowserProcess extends Process {
     this.log.apply(this, arguments)
   }
 
+  getColumns() {
+    const heigth = parseFloat(window.getComputedStyle(this.body, null).getPropertyValue('height'))
+
+    // 684 20
+    console.log(heigth, this.symbolHelper.scrollHeight)
+
+    return Math.floor(heigth / this.symbolHelper.scrollHeight)
+  }
+
+  getRows() {
+    const width = parseFloat(window.getComputedStyle(this.body, null).getPropertyValue('width'))
+    const symbolWidth = this.symbolHelper.scrollWidth/10
+
+    return Math.floor(width / symbolWidth)
+  }
+
+  async updateFromHash() {
+    let h = decodeURIComponent(this.window.document.location.hash.substr(1))
+    if(h.length === 0) {
+      return
+    }
+    let sendEnter = false
+    if(h.endsWith('!')) {
+      h = h.slice(0, -1)
+      sendEnter = true
+    }
+    this.setOutput(h)
+    if(sendEnter) {
+      this.sendEnter()
+    }
+  }
+
   async run(shell) {
 
     this.outputElement.focus()
 
-    const updateFromHash = () => {
-      const h = decodeURIComponent(document.location.hash.substr(1))
-      this.setOutput(h)
-    }
     this.window.onhashchange = () => {
-      updateFromHash()
+      this.updateFromHash()
     }
 
     this.shell = shell
     this.window.document.addEventListener('keydown', this.listener)
+
+    this.cancelButton.addEventListener('click', e => {
+      event.preventDefault()
+      shell.trap('SIGINT')
+    })
+
+    this.window.document.addEventListener('touchstart', e => {
+      this.outputElement.setAttribute('contenteditable', true)
+      this.outputElement.setAttribute('autocapitalize', 'off')
+      this.outputElement.focus()
+    })
+
+    this.focus()
+
+    this.getRows()
 
     return {
       setPrompt: (prompt) => {
