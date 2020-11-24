@@ -4,92 +4,88 @@ export default {
     children: {
       bin: {
         children: {
-          help: (args, shell, out) => {
-            out("I am here to help. Type commands to interact with the shell.")
-            out("The most important ones are:\n\n")
-            out("- ls — list all files")
-            out("- cat <file> — Show the content of a file, e.g. try 'cat /etc/motd'")
-            out("- cd <dir> — Change the working directory, e.g. try 'cd /etc' and then 'cat motd'")
-            out("- fortune — like a fortune cookie, but only the message.")
-            out("\n\nThere are many more commands. Press 'Tab' to get a list of all of them")
+          help: (args, shell, io) => {
+            io.writeLine("I am here to help. Type commands to interact with the shell.")
+            io.writeLine("The most important ones are:\n\n")
+            io.writeLine("- ls — list all files")
+            io.writeLine("- cat <file> — Show the content of a file, e.g. try 'cat /etc/motd'")
+            io.writeLine("- cd <dir> — Change the working directory, e.g. try 'cd /etc' and then 'cat motd'")
+            io.writeLine("- fortune — like a fortune cookie, but only the message.")
+            io.writeLine("\n\nThere are many more commands. Press 'Tab' to get a list of all of them")
             return 0
           },
-          echo: (args, shell, out) => {
-            out(args.join(' '))
+          echo: (args, shell, io) => {
+            io.writeLine(args.join(' '))
             return 0
           },
-          cat: (args, shell, out, err) => {
+          cat: (args, shell, io) => {
             return new Promise((resolve, reject) => {
               const file = shell.openFile(args[0], 'read')
               console.log(file)
               if (file === false) {
-                out(`cat: ${args[0]}: No such file or directory`)
+                io.writeLine(`cat: ${args[0]}: No such file or directory`)
                 resolve(1)
               }
               file.read().then(data => {
-                out(data)
+                io.writeLine(data)
                 resolve(0)
               }).catch(error => {
-                out(error)
+                io.writeErrorLine(error)
                 resolve(1)
               })
             })
           },
-          cd: (args, shell, out, err) => {
-            console.log(args)
+          cd: (args, shell, io) => {
             if(args.length === 0) {
               args[0] = shell.getenv("HOME")
             }
             const p = shell.getPath(args[0])
             if (p === false) {
-              err(`cd: No such file or directory: ${args[0]}`)
+              io.writeErrorLine(`cd: No such file or directory: ${args[0]}`)
               return 1
             }
             if (p.children) {
               shell.setenv('PWD', p.fullPath)
               return null
             }
-            err(`cd: not a directory ${args[0]}`)
+            io.writeErrorLine(`cd: not a directory ${args[0]}`)
             return 1
           },
-          ls: (args, shell, out, err) => {
+          ls: (args, shell, io) => {
             const p = shell.getPath(args[0])
             if (p === false) {
-              out(`ls: No such file or directory: ${args[0]}`)
+              io.writeErrorLine(`ls: No such file or directory: ${args[0]}`)
               return 1
             }
             if (p.children) {
-              out(Object.keys(p.children).sort().join(' '))
+              io.writeLine(Object.keys(p.children).sort().join(' '))
               return 0
             }
-            out(p.basename)
+            io.writeLine(p.basename)
             return 0
           },
-          env: (args, shell, out, err) => {
-            out(shell.environment.toString())
+          env: (args, shell, io) => {
+            io.writeLine(shell.environment.toString())
             return 0
           },
-          pwd: (args, shell, out, err) => {
-            out(shell.getenv("PWD"))
+          pwd: (args, shell, io) => {
+            io.writeLine(shell.getenv("PWD"))
             return 0
           },
-          whoami: (args, shell, out, err) => {
-            out(shell.getenv('USER'))
+          whoami: (args, shell, io) => {
+            io.writeLine(shell.getenv('USER'))
             return 0
           },
-          yes: (args, shell, out, err) => {
-            /*return shell.setInterval(() => {
-                out('yes')
-            })*/
+          yes: (args, shell, io) => {
             return shell.interruptible(function*() {
               while (true) {
-                out('yes')
+                io.writeLine('yes')
                 yield
               }
               return 0
             })
           },
-          sl: (args, shell, out, err) => {
+          sl: (args, shell, io) => {
             shell.clear()
             return shell.interruptible(function*() {
                 const r = shell.process.getRows()
@@ -106,7 +102,7 @@ export default {
                   train = train.map(line => {
                     return (' ' + line).slice(0, r)
                   })
-                  out(train.join('\n'))
+                  io.writeLine(train.join('\n'))
                   yield new Promise((resolve, reject) => {
                     setTimeout(() => {
                       shell.clear()
@@ -117,28 +113,28 @@ export default {
                 return
             })
           },
-          envsubst: (args, shell, out, err, inFn) => {
-            return new Promise((resolve, reject) => {
-              inFn().then(str => {
-                out(shell.applyenv(str))
-                resolve(1)
-              })
-            })
+          envsubst: async (args, shell, io) => {
+            const str = await io.readAll()
+            await io.writeLine(shell.applyenv(str))
+            return 1
           },
-          seq: (args, shell, out, err) => {
+          seq: (args, shell, io) => {
             let counter = parseInt(args[0])
             const limit = parseInt(args[1])
             return shell.interruptible(function*() {
               while (counter <= limit) {
-                out(counter++)
+                io.writeLine(counter++)
                 yield
               }
               return 0
             })
           },
-          su: (args, shell, out, err) => {
-            out('¯\\_(ツ)_/¯')
+          su: (args, shell, io) => {
+            io.writeLine('¯\\_(ツ)_/¯')
             shell.setenv('USER', 'root')
+          },
+          uname: (args, shell, io) => {
+            io.writeLine('cmsh svrnm.de 0.1.0 #1 SMP Mon Nov 23 21:37:51 CET 2020 js')
           }
         }
       },
@@ -157,11 +153,45 @@ export default {
         children: {
           bin: {
             children: {
-              date: (args, shell, out, err) => {
-                out((new Date()).toDateString());
+              date: (args, shell, io) => {
+                io.writeLine((new Date()).toDateString());
                 return 0
               },
-              fortune: (args, shell, out, err) => {
+              less: (args, shell, io) => {
+                shell.clear()
+                return shell.interruptible(function*() {
+                  const file = shell.openFile(args[0], 'read')
+                  if (file === false) {
+                    io.writeLine(`cat: ${args[0]}: No such file or directory`)
+                    return 1
+                  }
+
+                  yield new Promise((resolve, reject) => {
+                    file.read().then(data => {
+                      io.writeLine(data)
+                      resolve()
+                    })
+                  })
+
+                  io.writeLine('\n === Press Enter to Finish === ')
+
+                  let isEnter = false;
+                  while(!isEnter) {
+                    yield new Promise((resolve, reject) => {
+                      io.readChar().then(function(char) {
+                        isEnter = char === 'Enter'
+                        resolve()
+                      }).catch(function(signal) {
+                        // We can just resolve as the interruptable
+                        // takes care of the exit
+                        resolve()
+                      })
+                    })
+                  }
+                  return 0
+                })
+              },
+              fortune: (args, shell, io) => {
                 const data = [
                   "Darmok and Jalad… at Tanagra.",
                   "Shaka, when the walls fell.",
@@ -192,10 +222,10 @@ _/ ____\\____________/  |_ __ __  ____   ____
                                     \\/     \\/
 `
                 ];
-                out(data[Math.floor(Math.random() * data.length)])
+                io.writeLine(data[Math.floor(Math.random() * data.length)])
                 return 0;
               },
-              touch: (args, shell, out, err) => {
+              touch: (args, shell, io) => {
                 const r = args.map(arg => {
                   const file = shell.createFile(arg)
                   if (file) {
@@ -204,7 +234,7 @@ _/ ____\\____________/  |_ __ __  ____   ____
                   return `touch: ${arg}: Permission denied`
                 }).filter(e => e !== null).join('\n')
                 if (r !== '') {
-                  err(r)
+                  io.writeErrorLine(r)
                   return 1
                 }
                 return 0

@@ -1,16 +1,18 @@
 import Environment from './Environment.js'
 import FileSystem from './FileSystem.js'
 import RemoteFile from './RemoteFile.js'
+import Io from './Io.js'
 import buildCmdLine from '../functions/buildCmdLine.js'
 import baseFs from '../fs/base.js'
 
 class Shell {
-  constructor(process, env, baseFs) {
+  constructor(process, env, baseFs, io = Io.none()) {
     this.process = process
     this.inProcess = false
     this.sigIntReceived = false
     this.environment = new Environment(env, this)
     this.fileSystem = new FileSystem(baseFs, this.environment, this)
+    this.io = io
   }
 
   static async start(process, env, fileSystems = {}) {
@@ -18,7 +20,11 @@ class Shell {
       '?': 0,
       'PWD': env.HOME || '/',
       PATH: '/bin/:/usr/bin/:/usr/local/bin'
-    }, env), baseFs)
+    }, env), baseFs, new Io(
+      process,
+      process,
+      process
+    ))
 
     if(typeof fileSystems === 'function') {
       fileSystems = fileSystems((remotePath) => {
@@ -35,8 +41,8 @@ class Shell {
     const rl = await process.run(shell)
 
     shell.execute('cat /etc/motd').then(r => {
-      rl.setPrompt(shell.getPrompt())
 
+      rl.setPrompt(shell.getPrompt())
 
       rl.on('line', (line) => {
         if (shell.inProcess) {
@@ -61,7 +67,7 @@ class Shell {
   }
 
   clear() {
-    this.process.clear()
+    this.io.clear()
   }
 
   completer(line) {
@@ -90,6 +96,7 @@ class Shell {
   }
 
   trap(signal) {
+    console.log('Signal ', signal, ' received.')
     if(signal == 'SIGINT') {
       if (this.inProcess) {
         this.sigIntReceived = true
@@ -131,10 +138,6 @@ class Shell {
       path = this.getenv('PWD') + '/' + path
     }
     return this.fileSystem.open(path)
-  }
-
-  find(key) {
-
   }
 
   hasenv(key) {
@@ -182,11 +185,6 @@ class Shell {
     return executables
   }
 
-
-  getRows() {
-    return process.stdout.rows
-  }
-
   in() {
     return new Promise((resolve, reject) => {
       resolve()
@@ -194,11 +192,11 @@ class Shell {
   }
 
   out(str) {
-    this.process.log(str)
+    this.io.writeLine(str)
   }
 
   err(str) {
-    this.process.error(str)
+    this.io.writeErrorLine(str)
   }
 
   async interruptible(fnc) {
@@ -225,15 +223,60 @@ class Shell {
     })
   }
 
-  execute(value) {
-    return new Promise((resolve, reject) => {
+  buildIo(cmd, redirections) {
+    let outHandles = []
+    let inHandles = []
+
+    outHandles = redirections.filter(r => r.mode !== 'read').map(redirection => {
+      return this.openFile(redirection.target, redirection.mode)
+    })
+    inHandles = redirections.filter(r => r.mode === 'read').map(redirection => {
+      return this.openFile(redirection.target, redirection.mode)
+    })
+
+    const writer = outHandles.length > 0 ? {
+      writeLine: function() {
+        let data = Array.from(arguments).join(' ')
+        outHandles.forEach(fh => {
+          if (fh.mode === 'error') {
+            this.err(`${cmd}: ${fh.error}`)
+            return
+          }
+          fh.write(data)
+        })
+      }
+    } : this.process
+
+    const reader = inHandles.length > 0 ? {
+      readAll: function() {
+        return Promise.all(inHandles.map(fh => {
+          return fh.read()
+        })).then(results => {
+          return results.join('\n')
+        })
+      }
+    } : this.process
+
+    return new Io(
+      reader,
+      writer,
+      writer,
+      () => {
+        outHandles.forEach(fh => fh.close())
+      }
+    )
+  }
+
+  async execute(value) {
+    return new Promise(async (resolve, reject) => {
+
+      this.process.hold()
+
       const {
         variables,
         args,
         redirections
       } = buildCmdLine(value, this.environment)
-
-      // console.log('?', variables, args, redirections)
 
       if (args.length === 0) {
         Object.keys(variables).forEach(key => this.setenv(key, variables[key].value))
@@ -251,54 +294,14 @@ class Shell {
         return
       }
 
-      let inFn = this.in.bind(this)
-      let out = this.out.bind(this)
-      let err = this.err.bind(this)
-      let outHandles = []
-      let inHandles = []
+      const io = redirections.length > 0 ? this.buildIo(input, redirections) : this.io
 
-      if (redirections.length > 0) {
-        outHandles = redirections.filter(r => r.mode !== 'read').map(redirection => {
-          return this.openFile(redirection.target, redirection.mode)
-        })
-        inHandles = redirections.filter(r => r.mode === 'read').map(redirection => {
-          return this.openFile(redirection.target, redirection.mode)
-        })
-        if(inHandles.length > 0) {
-        inFn = () => {
-            return Promise.all(inHandles.map(fh => {
-              return fh.read()
-            })).then(results => {
-              return results.join('\n')
-            })
-          }
-        }
-        if(outHandles.length > 0) {
-          out = (str) => {
-            outHandles.forEach(fh => {
-              if (fh.mode === 'error') {
-                this.err(`${input}: ${fh.error}`)
-                return
-              }
-              fh.write(str)
-            })
-          }
-        }
-      }
+      const result = await executables[input].content(args, this, io)
 
-      const result = executables[input].content(args, this, out, err, inFn)
+      this.process.release()
+      io.release()
 
-      if (result instanceof Promise) {
-        this.process.hold()
-        result.then(r => {
-          outHandles.forEach(fh => fh.close())
-          this.process.release()
-          resolve(r)
-        })
-      } else {
-        outHandles.forEach(fh => fh.close())
-        resolve(result)
-      }
+      resolve(result)
     })
   }
 }

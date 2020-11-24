@@ -3,7 +3,7 @@ export default {
     USER: 'svrnm',
     HOSTNAME: 'svrnm.de',
     HOME: '/home/svrnm',
-    PS1: '\\u@\\h \\w> '
+    PS1: '\\e[31;100m\\u@\\e[36;100m\\h \\e[92;100m\\w\\e[30;100m>\\e[0m '
   },
   fileSystems: ($) => ({
     'home': {

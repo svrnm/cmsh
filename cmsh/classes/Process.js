@@ -1,3 +1,5 @@
+import StateMachine from '../classes/StateMachine.js'
+
 class Process {
   static start(scope) {
     if(scope.stdin && scope.stdout) {
@@ -21,19 +23,32 @@ class BrowserProcess extends Process {
     this.symbolHelper = window.document.getElementById("symbol")
     this.promptStr = '$'
     this.history = []
+
+    this.tag = 'span'
+    this.css = ''
+
+    this.isReader = false
+    this.readCb = () => {}
+
     this.historyPointer = 0
     this.onLine = () => {}
     this.listener = e => {
       if(e.metaKey) {
         return
       }
-      console.log(e.key, e)
+      // console.log(e.key, e)
 
       if(e.ctrlKey) {
         if(e.key === 'c') {
           e.preventDefault()
-          this.shell.trap('SIGINT')
+          this.sendSignal('SIGINT')
         }
+        return
+      }
+
+      if(this.isReader) {
+        e.preventDefault()
+        this.readCb(e.key)
         return
       }
 
@@ -62,16 +77,37 @@ class BrowserProcess extends Process {
           break;
         case 38:
           // Arrow up
-          this.historyPointer = this.historyPointer > 0 ? this.historyPointer - 1 : 0
-          this.setOutput(this.history[this.historyPointer])
+          this.historyUp()
           break;
         case 40:
           // Arrow down
-          this.historyPointer = this.historyPointer < this.history.length - 1 ? this.historyPointer + 1 : this.history.length - 1
-          this.setOutput(this.history[this.historyPointer])
+          this.historyDown()
           break;
       }
     }
+  }
+
+  sendSignal(signal) {
+    if(this.isReader) {
+      this.readCb(signal)
+    }
+    this.shell.trap(signal)
+  }
+
+  historyUp() {
+    if(this.history.length === 0) {
+      return
+    }
+    this.historyPointer = this.historyPointer > 0 ? this.historyPointer - 1 : 0
+    this.setOutput(this.history[this.historyPointer])
+  }
+
+  historyDown() {
+    if(this.history.length === 0) {
+      return
+    }
+    this.historyPointer = this.historyPointer < this.history.length - 1 ? this.historyPointer + 1 : this.history.length - 1
+    this.setOutput(this.history[this.historyPointer])
   }
 
   hold() {
@@ -82,11 +118,24 @@ class BrowserProcess extends Process {
     this.cancelButton.style.display = 'none'
   }
 
+  readChar() {
+    return new Promise((resolve, reject) => {
+      this.isReader = true
+      this.readCb = (char) => {
+        if(char === 'SIGINT') {
+          reject()
+        }
+        this.isReader = false
+        resolve(char)
+      }
+    })
+  }
+
   sendEnter() {
     this.hintElement.style.display = 'none'
     const l = this.outputElement.textContent
     this.history.push(l)
-    this.historyPointer = history.length - 1
+    this.historyPointer = this.history.length
     this.lineBreak()
     this.onLine(l)
   }
@@ -98,29 +147,25 @@ class BrowserProcess extends Process {
       const h = hint.split(' ').pop()
       return `<a class="command-hint" href="#${hint}">${h}</a>`
     }).join(' ')
-    /*
-    const div = document.createElement('div')
-    div.setAttribute('id', 'hints')
-    this.body.appendChild(div)
-    div.textContent = hints.join(' ')
-    */
   }
 
   focus() {
-    // this.outputElement.focus()
     this.window.scrollTo(0, this.window.document.body.scrollHeight)
   }
 
   setOutput(data) {
-    this.outputElement.textContent=data
+    this.outputElement.textContent = ''
+    this.output(data)
   }
 
-  output(data) {
-    this.outputElement.textContent+=data
+  output(data, tag = this.tag, css = this.css) {
+    this.outputElement.insertAdjacentHTML('beforeend', data.split('').map(c => `<${tag} ${css}>${c}</${tag}>`).join(''))
   }
 
   backspace() {
-    this.outputElement.textContent = this.outputElement.textContent.slice(0, -1)
+    if(this.outputElement.lastElementChild) {
+      this.outputElement.removeChild(this.outputElement.lastElementChild)
+    }
   }
 
   createNewOutputArea() {
@@ -131,25 +176,22 @@ class BrowserProcess extends Process {
   }
 
   lineBreak() {
-    console.log("LINEBREAK")
     const br = document.createElement('br')
     this.body.appendChild(br)
     this.createNewOutputArea()
   }
 
   prompt() {
-    console.log("PROMPT")
-    const p = document.createElement('span')
-    p.textContent = this.promptStr
-    this.body.appendChild(p)
-    const span = document.createElement('span')
-    this.body.appendChild(span)
-    this.outputElement = span
+    this.createNewOutputArea()
+    this.parseAndOutput(this.promptStr)
+
+    this.createNewOutputArea()
+
     if(this.firstPrompt) {
       this.firstPrompt = false
       this.updateFromHash()
     }
-    this.focus()
+    // this.focus()
   }
 
   clear() {
@@ -167,19 +209,112 @@ class BrowserProcess extends Process {
     return await response.text()
   }
 
-  log() {
+  parseAndOutput(data) {
+    const parser = StateMachine.initalize({
+      'normal': (c) => {
+        if(c === '\\') {
+          return 'backslash'
+        }
+        this.output(c)
+        return 'normal'
+      },
+      'backslash': (c) => {
+        const specialChars = {
+          '\'': '\'',
+          '\"': '\"',
+          '\\': '\\',
+          'n': '\n',
+          't': '\t',
+          'r': '\r',
+          'v': '\v',
+          'b': '\b',
+          'f': '\f'
+        }
+        if(Object.keys(specialChars).includes(c)) {
+          this.output(specialChars[c])
+          return 'normal'
+        }
+        if(c === 'x') {
+          return ['latin1', { numbers: [] } ]
+        }
+        if(c === 'e') {
+          return ['escape', { chars: [] }]
+        }
+      },
+      'latin1' : (c, state) => {
+        if(state.numbers.length === 2) {
+          this.output(String.fromCharCode(`0x${state.numbers.join('')}`))
+          return 'normal'
+        }
+        if(/^\d$/.test(c)) {
+          state.numbers.push(c)
+          return ['latin1', state]
+        }
+        return ['error', { message: 'Invalid hexadecimal escape sequence' }]
+      },
+      'escape' : (c, state) => {
+        // We look for \e[stuffm
+        if(state.chars.length === 0 && c !== '[') {
+          // \e is just non-printable and we skip
+          return 'normal'
+        }
+        // There are some other escape sequences
+        // but right now I'd like to have colors etc.
+        if(c === 'm') {
+          // Remove [
+          state.chars.shift()
+          this.outputEscapeSequence(state.chars.join('') + 'm')
+          return 'normal'
+        }
+        state.chars.push(c)
+        return ['escape', state]
+      }
+    }, 'normal')
+
+    data.split('').forEach(char => {
+      parser.next(char)
+    })
+
+    parser.next('')
+
+    this.resetOutput()
+
+    return 0
+  }
+
+  writeLine() {
     let data = Array.from(arguments).join(' ')
     if(!data.endsWith('\n')) {
       data+='\n'
     }
-    this.output(data)
+    this.parseAndOutput(data)
     this.focus()
-    console.log('=== LOG ===')
-    console.log.apply(console, arguments);
+    //console.log('=== LOG ===')
+    //console.log.apply(console, arguments);
   }
 
-  error() {
-    this.log.apply(this, arguments)
+  writeChar(c) {
+    this.output(c)
+  }
+
+  outputEscapeSequence(sequence) {
+    console.log(sequence)
+    if(sequence === '0m') {
+      this.resetOutput()
+    } else if(sequence.endsWith('m')) {
+      console.log(sequence.slice(0,-1))
+      this.css = `class="m${sequence.slice(0,-1).replace(/;/g, ' m')}"`
+    }
+    //this.output(sequence)
+  }
+
+  resetOutput() {
+    this.tag = 'span'
+    this.css = ''
+  }
+
+  writeErrorLine() {
+    this.writeLine.apply(this, arguments)
   }
 
   getColumns() {
@@ -227,13 +362,19 @@ class BrowserProcess extends Process {
 
     this.cancelButton.addEventListener('click', e => {
       event.preventDefault()
-      shell.trap('SIGINT')
+      this.sendSignal('SIGINT')
     })
 
     this.window.document.addEventListener('touchstart', e => {
       this.outputElement.setAttribute('contenteditable', true)
       this.outputElement.setAttribute('autocapitalize', 'off')
       this.outputElement.focus()
+    })
+
+    this.window.document.addEventListener('paste', (event) => {
+      console.log('PASTE', event)
+      let paste = (event.clipboardData || window.clipboardData).getData('text');
+      this.output(paste)
     })
 
     this.focus()
@@ -265,7 +406,7 @@ class NodeProcess extends Process {
     this.process.exit(0)
   }
 
-  log() {
+  writeLine() {
     console.log.apply(console, arguments)
   }
 

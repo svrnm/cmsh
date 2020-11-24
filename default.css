@@ -29,11 +29,11 @@
 	--solarized-base3:	#fdf6e3;
 	--solarized-yellow:	#b58900;
 	--solarized-orange:	#cb4b16;
-	--solarized-red:	#dc322f	220;
+	--solarized-red:	  #dc322f;
 	--solarized-magenta:#d33682;
 	--solarized-violet:	#6c71c4;
-	--solarized-blue:	#268bd2;
-	--solarized-cyan:	#2aa198;
+	--solarized-blue:	  #268bd2;
+	--solarized-cyan:	  #2aa198;
 	--solarized-green:	#859900;
 	--debug-border:     0px;
 }
@@ -94,6 +94,146 @@ textarea {
 
 #symbol {
   opacity: 0
+}
+
+.m1 {
+    font-weight: bold;
+}
+
+.m4 {
+  text-decoration: underline;
+}
+
+.m8 {
+  opacity: 0;
+}
+
+.m30 {
+  color: black;
+}
+
+.m31 {
+  color: var(--solarized-red);
+}
+
+.m32 {
+  color: var(--solarized-green)
+}
+
+.m33 {
+  color: var(--solarized-yellow)
+}
+
+.m34 {
+  color: var(--solarized-blue)
+}
+
+.m35 {
+  color: var(--solarized-magenta)
+}
+
+.m36 {
+  color: var(--solarized-cyan)
+}
+
+.m37 {
+  color: lightgray;
+}
+
+.m90 {
+  color: darkgray
+}
+
+.m91 {
+  color: lightred
+}
+
+.m92 {
+  color: lightgreen
+}
+
+.m93 {
+  color: lightyellow
+}
+
+.m94 {
+  color: lightblue
+}
+
+.m95 {
+  color: lightmagenta
+}
+
+.m96 {
+  color: lightcyan
+}
+
+.m97 {
+  color: white
+}
+
+.m40 {
+  background: black
+}
+
+.m41 {
+  background: var(--solarized-red)
+}
+
+.m42 {
+  background: var(--solarized-green)
+}
+
+.m43 {
+  background: var(--solarized-yellow)
+}
+
+.m44 {
+  background: var(--solarized-blue)
+}
+
+.m45 {
+  background: var(--solarized-magenta)
+}
+
+.m46 {
+  background: var(--solarized-cyan)
+}
+
+.m47 {
+  background: lightgray;
+}
+
+.m100 {
+  background: darkgray
+}
+
+.m101 {
+  background: darkred
+}
+
+.m102 {
+  background: lightgreen
+}
+
+.m103 {
+  background: lightyellow
+}
+
+.m104 {
+  background: lightblue
+}
+
+.m105 {
+  background: lightmagenta
+}
+
+.m106 {
+  background: lightcyan
+}
+
+.m107 {
+  background: white
 }
 
 @media (prefers-color-scheme: dark) {

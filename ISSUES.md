@@ -1,8 +1,6 @@
 - Add virtual cursor to move mouse position
 - Create "state machine" from reading the command line and doing the "auto completer", add "subshell" etc
-- Add some "help" or "tutorial"
-- Imprint (maybe have some "Taskbar" at the top)
-- Implement "less"
+- Improve "less"
 - Real "su": allow to edit remote files
 - Colors, "HTMLify" for output, inline display for images(?)
 - ping to "ping html servers"
@@ -10,4 +8,6 @@
 - add find/locate as a "search" feature
 - onhashchange does not work 100% accurate
 - "No Javascript" behaviour
-- sl
+- mkdir, rmdir, rm, cp, mv, head, tail
+- alias
+- Improve "mobile"

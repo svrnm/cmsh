@@ -9,10 +9,17 @@ class Environment {
   }
 
   get(key) {
+    if(key === 'RANDOM') {
+      // Range of random is 0 - 32767
+      return Math.floor(Math.random() * Math.floor(32767));
+    }
     return this.values[key].value
   }
 
   has(key) {
+    if(key === 'RANDOM') {
+      return true
+    }
     return typeof this.values[key] === 'object'
   }
 
