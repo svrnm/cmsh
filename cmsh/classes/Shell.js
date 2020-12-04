@@ -2,7 +2,7 @@ import Environment from './Environment.js'
 import FileSystem from './FileSystem.js'
 import RemoteFile from './RemoteFile.js'
 import Io from './Io.js'
-import buildCmdLine from '../functions/buildCmdLine.js'
+import Line from './Line.js'
 import baseFs from '../fs/base.js'
 
 class Shell {
@@ -234,12 +234,15 @@ class Shell {
       return this.openFile(redirection.target, redirection.mode)
     })
 
+    const process = this.process
+
     const writer = outHandles.length > 0 ? {
       writeLine: function() {
         let data = Array.from(arguments).join(' ')
         outHandles.forEach(fh => {
           if (fh.mode === 'error') {
-            this.err(`${cmd}: ${fh.error}`)
+            // we don't have error redirection yetec
+            process.writeErrorLine(`${cmd}: ${fh.error}`)
             return
           }
           fh.write(data)
@@ -260,7 +263,7 @@ class Shell {
     return new Io(
       reader,
       writer,
-      writer,
+      this.process,
       () => {
         outHandles.forEach(fh => fh.close())
       }
@@ -272,31 +275,30 @@ class Shell {
 
       this.process.hold()
 
-      const {
-        variables,
-        args,
-        redirections
-      } = buildCmdLine(value, this.environment)
+      const line = Line.build(value, this.environment)
 
-      if (args.length === 0) {
-        Object.keys(variables).forEach(key => this.setenv(key, variables[key].value))
+      if (line.args.length === 0) {
+        Object.keys(line.variables).forEach(key => this.setenv(key, line.variables[key].value))
         resolve()
         return
       }
 
-      const input = args.shift()
+      const input = line.args.shift()
 
       const executables = this.getExecutablesInPath()
 
       if (!executables[input]) {
         this.out(`Command not found: ${input}`)
+
+        this.process.release()
+
         resolve(127)
         return
       }
 
-      const io = redirections.length > 0 ? this.buildIo(input, redirections) : this.io
+      const io = line.redirections.length > 0 ? this.buildIo(input, line.redirections) : this.io
 
-      const result = await executables[input].content(args, this, io)
+      const result = await executables[input].content(line.args, this, io)
 
       this.process.release()
       io.release()

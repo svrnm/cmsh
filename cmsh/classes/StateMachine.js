@@ -2,8 +2,8 @@ class StateMachine {
 
   constructor(states, initialState) {
     this.states = states
-    this.state = states[initialState]
-    this.data = {}
+    this.state = Array.isArray(initialState) ? states[initialState[0]] : states[initialState]
+    this.data = Array.isArray(initialState) && initialState.length > 1 ? initialState[1] : {}
   }
 
   static initalize(states, initialState) {
