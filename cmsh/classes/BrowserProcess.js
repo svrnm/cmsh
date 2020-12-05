@@ -67,13 +67,15 @@ class BrowserProcess {
           break;
         case 9:
           // Tab
-          const [hints, line] = (this.shell.completer(this.outputElement.textContent))
-          console.log(hints, line)
-          if(hints.length === 1) {
-            this.output(hints[0].substr(line.length))
-          } else {
-            this.hint(hints)
-          }
+          this.shell.completer(this.outputElement.textContent).then(result => {
+            const [hints, line] = result
+            console.log(hints, line)
+            if(hints.length === 1) {
+              this.output(hints[0].substr(line.length))
+            } else {
+              this.hint(hints)
+            }
+          })
           break;
         case 38:
           // Arrow up
@@ -141,12 +143,13 @@ class BrowserProcess {
   }
 
   hint(hints) {
-    console.log(this.hintElement)
+    // console.log(this.hintElement)
     this.hintElement.style.display = 'block'
     this.hintElement.innerHTML = hints.map(hint => {
       const h = hint.split(' ').pop()
       return `<a class="command-hint" href="#${hint}">${h}</a>`
     }).join(' ')
+    this.focus()
   }
 
   focus() {

@@ -1,6 +1,5 @@
 export default {
   '/': {
-    writeable: true,
     children: {
       bin: {
         children: {
@@ -14,32 +13,33 @@ export default {
             io.writeLine("\n\nThere are many more commands. Press 'Tab' to get a list of all of them")
             return 0
           },
-          echo: (args, shell, io) => {
-            io.writeLine(args.join(' '))
+          echo: async (args, shell, io) => {
+            await io.writeLine(args.join(' '))
             return 0
           },
           cat: (args, shell, io) => {
             return new Promise((resolve, reject) => {
-              const file = shell.openFile(args[0], 'read')
-              console.log(file)
-              if (file === false) {
-                io.writeLine(`cat: ${args[0]}: No such file or directory`)
-                resolve(1)
-              }
-              file.read().then(data => {
-                io.writeLine(data)
-                resolve(0)
-              }).catch(error => {
-                io.writeErrorLine(error)
-                resolve(1)
+              shell.openFile(args[0], 'read').then(file => {
+                // console.log(file)
+                if (file === false) {
+                  io.writeLine(`cat: ${args[0]}: No such file or directory`)
+                  resolve(1)
+                }
+                file.read().then(data => {
+                  io.writeLine(data)
+                  resolve(0)
+                }).catch(error => {
+                  io.writeErrorLine(error)
+                  resolve(1)
+                })
               })
             })
           },
-          cd: (args, shell, io) => {
+          cd: async (args, shell, io) => {
             if(args.length === 0) {
               args[0] = shell.getenv("HOME")
             }
-            const p = shell.getPath(args[0])
+            const p = await shell.getPath(args[0])
             if (p === false) {
               io.writeErrorLine(`cd: No such file or directory: ${args[0]}`)
               return 1
@@ -51,8 +51,9 @@ export default {
             io.writeErrorLine(`cd: not a directory ${args[0]}`)
             return 1
           },
-          ls: (args, shell, io) => {
-            const p = shell.getPath(args[0])
+          ls: async (args, shell, io) => {
+            const p = await shell.getPath(args[0])
+            console.log(p)
             if (p === false) {
               io.writeErrorLine(`ls: No such file or directory: ${args[0]}`)
               return 1
@@ -113,6 +114,16 @@ export default {
                 return
             })
           },
+          sleep: (args, shell, io) => {
+            return shell.interruptible(function*() {
+              const val = parseInt(args[0])
+              yield new Promise((resolve, reject) => {
+                setTimeout(() => {
+                  resolve()
+                }, val * 1000)
+              })
+            })
+          },
           envsubst: async (args, shell, io) => {
             const str = await io.readAll()
             await io.writeLine(shell.applyenv(str))
@@ -138,12 +149,21 @@ export default {
           }
         }
       },
+      home: {
+        children: {}
+      },
       etc: {
         children: {
           motd: 'Welcome to cm.sh!'
         }
       },
       tmp: {
+        writeable: true,
+        children: {
+
+        }
+      },
+      var: {
         writeable: true,
         children: {
 
@@ -160,16 +180,16 @@ export default {
               less: (args, shell, io) => {
                 shell.clear()
                 return shell.interruptible(function*() {
-                  const file = shell.openFile(args[0], 'read')
-                  if (file === false) {
-                    io.writeLine(`cat: ${args[0]}: No such file or directory`)
-                    return 1
-                  }
-
                   yield new Promise((resolve, reject) => {
-                    file.read().then(data => {
-                      io.writeLine(data)
-                      resolve()
+                    shell.openFile(args[0], 'read').then(file => {
+                      if (file === false) {
+                        io.writeLine(`cat: ${args[0]}: No such file or directory`)
+                        reject(1)
+                      }
+                      file.read().then(data => {
+                        io.writeLine(data)
+                        resolve()
+                      })
                     })
                   })
 

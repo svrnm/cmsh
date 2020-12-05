@@ -111,8 +111,6 @@ class Line {
             }
         }, ['argument', { chars: [], values: [] }])
 
-        console.log(value)
-
         value.replace(/(>+|<+)/g, ' $1 ').split('').forEach(char => {
           tokenizer.next(char)
         })
@@ -136,8 +134,6 @@ class Line {
         let redirectionMode = '';
 
         tokens.forEach(token => {
-            console.log(token)
-
             const isVariable = (beforeCmd && token[0].value.includes('=') && !token[0].inSingleQuotes)
 
             const isRedirection = (!token[0].inSingleQuotes && ['>','>>','<<','<'].includes(token[0].value))
@@ -170,11 +166,13 @@ class Line {
             }
         })
 
+        /*
         console.log('args', args)
 
         console.log('variables', variables)
 
         console.log('redirections', redirections)
+        */
 
         return new Line(
             variables,

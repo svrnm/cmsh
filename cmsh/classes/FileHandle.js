@@ -1,5 +1,3 @@
-import RemoteFile from './RemoteFile.js'
-
 class FileHandle {
   constructor(file, mode = 'append', error = '') {
     this.file = file
@@ -17,14 +15,6 @@ class FileHandle {
     return new Promise((resolve, reject) => {
       if(this.mode === 'error') {
         reject(this.error)
-        return
-      }
-      if(this.file.content instanceof RemoteFile) {
-        this.file.content.fetch().then(content => {
-          resolve(content)
-        }).catch(error => {
-          reject(error)
-        })
         return
       }
       resolve(this.file.content)

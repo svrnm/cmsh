@@ -1,21 +1,17 @@
 @font-face{
-    font-family: 'Source Code Variable';
-    font-weight: 200 900;
+    font-family: 'Inconsolata Nerd Font';
+    font-weight: 700 900;
     font-style: normal;
     font-stretch: normal;
-    src: url('./fonts/WOFF2/VAR/SourceCodeVariable-Roman.ttf.woff2') format('woff2'),
-         url('./fonts/WOFF/VAR/SourceCodeVariable-Roman.ttf.woff') format('woff'),
-         url('./fonts/VAR/SourceCodeVariable-Roman.ttf') format('truetype');
+    src: url('./fonts/Inconsolata Bold Nerd Font Complete Mono.otf') format('opentype')
 }
 
 @font-face{
-    font-family: 'Source Code Variable';
-    font-weight: 200 900;
-    font-style: italic;
+    font-family: 'Inconsolata Nerd Font';
+    font-weight: 200 500;
+    font-style: normal;
     font-stretch: normal;
-    src: url('./fonts/WOFF2/VAR/SourceCodeVariable-Italic.ttf.woff2') format('woff2'),
-         url('./fonts/WOFF/VAR/SourceCodeVariable-Italic.ttf.woff') format('woff'),
-         url('./fonts/VAR/SourceCodeVariable-Italic.ttf') format('truetype');
+    src: url('./fonts/Inconsolata Regular Nerd Font Complete Mono.otf') format('opentype')
 }
 
 :root {
@@ -46,7 +42,7 @@ html, body, a.command-hint {
   margin: 0;
   background:  var(--solarized-base3);
   color: var(--solarized-base03);
-  font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
+  font-family: "Lucida Console", Monaco, monospace;
 }
 
 a.command-hint {
@@ -240,7 +236,6 @@ textarea {
   html, body, a.command-hint {
     background:  var(--solarized-base03);
     color: var(--solarized-base0);
-    font-family: "Source Code Variable", "Lucida Console", Monaco, monospace;
   }
 
   nav {

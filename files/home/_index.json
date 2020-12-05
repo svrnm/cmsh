@@ -1,0 +1,12 @@
+{
+  "/": {
+    "children": {
+      "svrnm": {
+        "children": {
+          "hello_world": {},
+          "hello_you": {}
+        }
+      }
+    }
+  }
+}

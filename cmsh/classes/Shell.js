@@ -1,42 +1,28 @@
 import Environment from './Environment.js'
 import FileSystem from './FileSystem.js'
-import RemoteFile from './RemoteFile.js'
 import Io from './Io.js'
 import Line from './Line.js'
-import baseFs from '../fs/base.js'
 
 class Shell {
-  constructor(process, env, baseFs, io = Io.none()) {
+  constructor(process, env, fstab, io = Io.none()) {
     this.process = process
     this.inProcess = false
     this.sigIntReceived = false
     this.environment = new Environment(env, this)
-    this.fileSystem = new FileSystem(baseFs, this.environment, this)
+    this.fileSystem = new FileSystem(fstab)
     this.io = io
   }
 
-  static async start(process, env, fileSystems = {}) {
+  static async start(process, env, fstab = []) {
     const shell = new Shell(process, Object.assign({
       '?': 0,
       'PWD': env.HOME || '/',
-      PATH: '/bin/:/usr/bin/:/usr/local/bin'
-    }, env), baseFs, new Io(
+      PATH: '/bin/:/usr/bin/'
+    }, env), fstab, new Io(
       process,
       process,
       process
     ))
-
-    if(typeof fileSystems === 'function') {
-      fileSystems = fileSystems((remotePath) => {
-        return new RemoteFile(process, remotePath)
-      })
-    }
-
-    Object.keys(fileSystems).forEach(mountPoint => {
-      shell.mount(fileSystems[mountPoint], mountPoint)
-    })
-
-    shell.chmod('/', '-w')
 
     const rl = await process.run(shell)
 
@@ -70,11 +56,12 @@ class Shell {
     this.io.clear()
   }
 
-  completer(line) {
+  async completer(line) {
     const args = line.split(' ')
     // Only one arg so we expand commands
-    if(args.length === 1) {
-        const hits = Object.keys(this.getExecutablesInPath()).filter(e => e.startsWith(line))
+    if(args.length === 1 && !args[0].startsWith('/') && !args[0].startsWith('.')) {
+        const executables = await this.getExecutablesInPath()
+        const hits = Object.keys(executables).filter(e => e.startsWith(line))
         return [hits, line]
     } else {
     // expand on path
@@ -83,13 +70,14 @@ class Shell {
     const parts = ((path.startsWith('/') ? '' : pwd) + path).split('/')
     const file = parts.pop()
 
-    const directory = this.fileSystem.get(parts.join('/'), true)
+    const directory = await this.fileSystem.get(parts.join('/'), true)
+
     const hits = Object.keys(directory.children).filter(e => e.startsWith(file)).map(hit => {
         let v = parts.join('/') + '/' + hit
         if(v.startsWith(pwd)) {
           v = v.substr(pwd.length)
         }
-        return args.join(' ') + ' ' + v
+        return (args.join(' ') + ' ' + v).trim()
       })
       return [hits, line]
     }
@@ -119,25 +107,25 @@ class Shell {
     return this.hasenv('PS1') ? this.getenv('PS1').replace('\\u', this.getenv('USER')).replace('\\h', this.getenv('HOSTNAME')).replace('\\w', dir) : '$'
   }
 
-  getPath(path = '') {
+  async getPath(path = '') {
     if (path.indexOf('/') != 0) {
       path = this.getenv('PWD') + '/' + path
     }
-    return this.fileSystem.get(path)
+    return await this.fileSystem.get(path)
   }
 
-  createFile(path) {
+  async createFile(path) {
     if (path.indexOf('/') != 0) {
       path = this.getenv('PWD') + '/' + path
     }
-    return this.fileSystem.create(path)
+    return await this.fileSystem.create(path)
   }
 
-  openFile(path) {
+  async openFile(path) {
     if (path.indexOf('/') != 0) {
       path = this.getenv('PWD') + '/' + path
     }
-    return this.fileSystem.open(path)
+    return await this.fileSystem.open(path)
   }
 
   hasenv(key) {
@@ -156,9 +144,13 @@ class Shell {
     return this.environment.applyOnString(str)
   }
 
-  getExecutablesInPath() {
-    const executables = this.environment.get('PATH').split(':').reduce((result, path) => {
-      const files = this.fileSystem.get(path).children
+  async getExecutablesInPath() {
+    const candidates = await Promise.all(this.environment.get('PATH').split(':').map(async path => {
+      return this.fileSystem.get(path)
+    }))
+
+    const executables = candidates.reduce((result, f) => {
+      const files = f.children
       if (!files) {
         return result
       }
@@ -223,22 +215,23 @@ class Shell {
     })
   }
 
-  buildIo(cmd, redirections) {
+  async buildIo(cmd, redirections) {
     let outHandles = []
     let inHandles = []
 
-    outHandles = redirections.filter(r => r.mode !== 'read').map(redirection => {
-      return this.openFile(redirection.target, redirection.mode)
-    })
-    inHandles = redirections.filter(r => r.mode === 'read').map(redirection => {
-      return this.openFile(redirection.target, redirection.mode)
-    })
+    outHandles = await Promise.all(redirections.filter(r => r.mode !== 'read').map(async redirection => {
+      return await this.openFile(redirection.target, redirection.mode)
+    }))
+    inHandles = await Promise.all(redirections.filter(r => r.mode === 'read').map(async redirection => {
+      return await this.openFile(redirection.target, redirection.mode)
+    }))
 
     const process = this.process
 
     const writer = outHandles.length > 0 ? {
-      writeLine: function() {
+      writeLine: async function() {
         let data = Array.from(arguments).join(' ')
+        console.log('WRITINIG DATA', data)
         outHandles.forEach(fh => {
           if (fh.mode === 'error') {
             // we don't have error redirection yetec
@@ -265,9 +258,27 @@ class Shell {
       writer,
       this.process,
       () => {
-        outHandles.forEach(fh => fh.close())
+        outHandles.forEach(fh => {
+          fh.close()
+          console.log(fh)
+        })
       }
     )
+  }
+
+  async getExecutable(name) {
+    const executables = await this.getExecutablesInPath()
+    if(executables[name]) {
+      return executables[name]
+    }
+
+    const file = await this.fileSystem.get(name)
+
+    if(file.executable) {
+      return file
+    }
+
+    return false
   }
 
   async execute(value) {
@@ -285,9 +296,9 @@ class Shell {
 
       const input = line.args.shift()
 
-      const executables = this.getExecutablesInPath()
+      const exe = await this.getExecutable(input)
 
-      if (!executables[input]) {
+      if (exe === false) {
         this.out(`Command not found: ${input}`)
 
         this.process.release()
@@ -296,9 +307,9 @@ class Shell {
         return
       }
 
-      const io = line.redirections.length > 0 ? this.buildIo(input, line.redirections) : this.io
+      const io = line.redirections.length > 0 ? (await this.buildIo(input, line.redirections)) : this.io
 
-      const result = await executables[input].content(line.args, this, io)
+      const result = await exe.content(line.args, this, io)
 
       this.process.release()
       io.release()

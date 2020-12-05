@@ -1,11 +1,80 @@
-import FileHandle from './FileHandle.js'
-import RemoteFile from './RemoteFile.js'
+import BaseFileSystem from './fileSystems/BaseFileSystem.js'
+import JavaScriptFileSystem from './fileSystems/JavaScriptFileSystem.js'
+import HttpFileSystem from './fileSystems/HttpFileSystem.js'
+import TmpFileSystem from './fileSystems/TmpFileSystem.js'
 
-class FileSystem {
-  constructor(files) {
-    this.files = this._createFileSystem(files)
+
+
+class WebStorageFileSystem extends BaseFileSystem {
+  constructor() {
+    super()
+  }
+}
+
+class FileSystem extends BaseFileSystem {
+  constructor(fstab) {
+    super()
+    this.mounts = {}
+    fstab.forEach(entry => {
+      let fs = null
+
+      switch(entry.fsType) {
+        case "jfs":
+          fs =  new JavaScriptFileSystem(entry.deviceSpec, entry.options);
+          break;
+        case "httpfs":
+          fs = new HttpFileSystem(entry.deviceSpec, entry.options);
+          break;
+        case "wsfs":
+          fs = new WebStorageFileSystem(entry.deviceSpec, entry.options);
+          break;
+        case "tmpfs":
+          fs = new TmpFileSystem(entry.deviceSpec, entry.options);
+          break;
+      }
+      if(fs !== null) {
+        this.mounts[entry.mountPoint] = fs
+      }
+    })
   }
 
+  _getMountPoint(fp) {
+      return Object.keys(this.mounts).filter(mp => {
+        return fp.startsWith(mp)
+      }).pop() // TODO: if we have multiple matches we need to take the longest
+  }
+
+  _prepare(path) {
+    const fp = this.resolvePath(path)
+    const mountPoint = this._getMountPoint(fp)
+    let innerPath = fp.slice(mountPoint.length)
+    if(!innerPath.startsWith('/')) {
+      innerPath = '/' + innerPath
+    }
+    return [fp, mountPoint, innerPath]
+  }
+
+  async get(path, pointer = false) {
+    const [fp, mountPoint, innerPath] = this._prepare(path)
+    const r = await this.mounts[mountPoint].get(innerPath, pointer)
+    if(pointer || r === false) {
+      return r
+    }
+    r.fullPath = fp
+    return r
+  }
+
+  async open(path, mode = 'append') {
+      const [fp, mountPoint, innerPath] = this._prepare(path)
+      return await this.mounts[mountPoint].open(innerPath, mode)
+  }
+
+  async create(path, pointer = false) {
+      const [fp, mountPoint, innerPath] = this._prepare(path)
+      return await this.mounts[mountPoint].create(innerPath, pointer)
+  }
+
+  /*
   _createFileSystem(files) {
     const walk = (files) => {
       return (result, key) => {
@@ -124,21 +193,22 @@ class FileSystem {
   get(path, pointer = false) {
     let position = this.files['/']
     const fullPath = ['']
-    let parent = this.files['/']
+    let parents = [this.files['/']]
     let parts = path.split('/')
+
     const notfound = parts.some(p => {
       if (p === '' || p === '.') {
         return false
       }
       if (p === '..') {
-        position = parent
         if (fullPath.length > 1) {
+          position = parents.pop()
           fullPath.pop()
         }
         return false
       }
       if (position.type === 'directory' && position.children[p]) {
-        parent = position
+        parents.push(position)
         position = position.children[p]
         fullPath.push(p)
         return false
@@ -162,6 +232,7 @@ class FileSystem {
       basename: parts.pop()
     })
   }
+  */
 }
 
 export default FileSystem

@@ -3,5 +3,5 @@ import config from './config.js'
 import Process from './classes/Process.js'
 
 (function(scope) {
-  Shell.start(Process.start(scope), config.environment, config.fileSystems)
+  Shell.start(Process.start(scope), config.environment, config.fstab)
 }(typeof window === 'undefined' ? process : window));
