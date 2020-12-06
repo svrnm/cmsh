@@ -3,6 +3,10 @@ export default {
     children: {
       bin: {
         children: {
+          mount: (args, shell, io) => {
+            io.writeLine(shell.getMounts())
+            return 0
+          },
           help: (args, shell, io) => {
             io.writeLine("I am here to help. Type commands to interact with the shell.")
             io.writeLine("The most important ones are:\n\n")
@@ -13,8 +17,8 @@ export default {
             io.writeLine("\n\nThere are many more commands. Press 'Tab' to get a list of all of them")
             return 0
           },
-          echo: async (args, shell, io) => {
-            await io.writeLine(args.join(' '))
+          echo: (args, shell, io) => {
+            io.writeLine(args.join(' '))
             return 0
           },
           cat: (args, shell, io) => {

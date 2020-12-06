@@ -37,10 +37,10 @@ export default {
         options: 'rw'
       },
       {
-        deviceSpec: 'localStorage',
+        deviceSpec: window.localStorage,
         mountPoint: '/usr/local',
         fsType: 'wsfs',
-        options: 'rw'
+        options: 'rw',
       }
   ]
 }

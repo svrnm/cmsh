@@ -2,21 +2,19 @@ import BaseFileSystem from './fileSystems/BaseFileSystem.js'
 import JavaScriptFileSystem from './fileSystems/JavaScriptFileSystem.js'
 import HttpFileSystem from './fileSystems/HttpFileSystem.js'
 import TmpFileSystem from './fileSystems/TmpFileSystem.js'
-
-
-
-class WebStorageFileSystem extends BaseFileSystem {
-  constructor() {
-    super()
-  }
-}
+import WebStorageFileSystem from './fileSystems/WebStorageFileSystem.js'
 
 class FileSystem extends BaseFileSystem {
   constructor(fstab) {
     super()
+    this.fstab = fstab
     this.mounts = {}
     fstab.forEach(entry => {
       let fs = null
+
+      if(entry.automount === false) {
+        return
+      }
 
       switch(entry.fsType) {
         case "jfs":
@@ -36,6 +34,12 @@ class FileSystem extends BaseFileSystem {
         this.mounts[entry.mountPoint] = fs
       }
     })
+  }
+
+  getFstab() {
+    return this.fstab.map(e => {
+      return `${e.deviceSpec} on ${e.mountPoint} type ${e.fsType} (${e.options})`
+    }).join('\n')
   }
 
   _getMountPoint(fp) {

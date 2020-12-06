@@ -98,8 +98,8 @@ class Shell {
     return this.fileSystem.chmod(path, mode)
   }
 
-  mount(files, mountPoint = '/mnt') {
-    return this.fileSystem.mount(files, mountPoint)
+  getMounts() {
+    return this.fileSystem.getFstab()
   }
 
   getPrompt() {

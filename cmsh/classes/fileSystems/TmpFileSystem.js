@@ -26,13 +26,11 @@ class TmpFileSystem extends BaseFileSystem {
   }
 
   async create(path, pointer = false) {
-    const obj = await this._createFromObject(path, {
+    return await this._createFromObject(path, {
       type: 'file',
       writeable: true,
       content: ''
     }, pointer)
-    console.log(obj)
-    return obj
   }
 
   async _createFromObject(path, what, pointer) {
