@@ -6,7 +6,7 @@ Content Management Shell is hear to change this, it's still buggy, it's probably
 
 ## Preview
 
-Want to see cmsh in action, got to [https://svrnm.de/](svrnm.de) and try it out yourself
+Want to see cmsh in action, got to [svrnm.de](https://svrnm.de) and try it out yourself
 
 ![A picture showing how cmsh looks like: it presents the MOTD, a shell prompt, where different commands already have been provided: help, ls, fortune.](./teaser.png)
 
